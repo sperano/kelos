@@ -994,10 +994,10 @@ to receive refreshed credentials during long-running work.
 | `spec.when.webhook.excludeFilters[].pattern` | Exclude the delivery on a regex match against the extracted field value (mutually exclusive with `value`) | Conditional |
 | `spec.when.webhook.gatewayRef.name` | Bind this source to a [WebhookGateway](#webhookgateway) in the same namespace whose `spec.generic` field is set. Generic gateway deliveries remain unauthenticated, and the per-source server ignores this spawner when the reference is present | No |
 | `spec.when.jira.pollInterval` | Per-source poll interval (e.g., `"30s"`, `"5m"`). Defaults to `5m` when omitted | No |
-| `spec.when.vikunja.baseUrl` | [Vikunja](https://vikunja.io) instance URL, without the `/api/v1` suffix (e.g., `"https://vikunja.example.com"`) | Yes (when using vikunja) |
+| `spec.when.vikunja.baseUrl` | [Vikunja](https://vikunja.io) instance URL (`vikunja` is available in `v1alpha2` only), without the `/api/v1` suffix (e.g., `"https://vikunja.example.com"`) | Yes (when using vikunja) |
 | `spec.when.vikunja.projectId` | Numeric Vikunja project ID | Yes (when using vikunja) |
 | `spec.when.vikunja.filter` | Vikunja filter query, scoped to the project (do not include a `project = ...` clause). When empty, defaults to `"done = false"` (open tasks only); when set, used as-is | No |
-| `spec.when.vikunja.secretRef.name` | Secret containing a `VIKUNJA_TOKEN` key (a Vikunja API token, sent as a Bearer token). Stored only in `v1alpha2`; a client that writes the spawner through `v1alpha1` preserves the whole `vikunja` source in an annotation, so stripping that annotation drops it | Yes (when using vikunja) |
+| `spec.when.vikunja.secretRef.name` | Secret containing a `VIKUNJA_TOKEN` key (a Vikunja API token, sent as a Bearer token). | Yes (when using vikunja) |
 | `spec.when.vikunja.pollInterval` | Per-source poll interval (e.g., `"30s"`, `"5m"`). Defaults to `5m` when omitted | No |
 | `spec.when.cron.schedule` | Cron schedule expression (e.g., `"0 * * * *"`) | Yes (when using cron) |
 | `spec.credentials[].name` | Unique name for a credential distributed by this TaskSpawner. The name is recorded in the `kelos.dev/spawner-credential` label on generated Tasks | Yes when `spec.credentials` is set |

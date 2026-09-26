@@ -145,6 +145,9 @@ func (s *VikunjaSource) fetchAllTasks(ctx context.Context) ([]vikunjaTask, error
 	return allTasks, nil
 }
 
+// fetchTasksPage lists one page of project tasks via the view-less
+// /projects/{id}/tasks route rather than /projects/{id}/views/{view}/tasks,
+// so that a view's own filter is never combined with Filter.
 func (s *VikunjaSource) fetchTasksPage(ctx context.Context, page int) ([]vikunjaTask, int, error) {
 	u, err := url.Parse(strings.TrimRight(s.BaseURL, "/") + fmt.Sprintf("/api/v1/projects/%d/tasks", s.ProjectID))
 	if err != nil {
