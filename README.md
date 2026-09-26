@@ -38,7 +38,7 @@ Claude Code, OpenAI Codex, Google Gemini, OpenCode, Cursor, and
 - Run agents in isolated Kubernetes workloads instead of on developer laptops.
 - Reuse the same repositories, instructions, skills, and tools across agents.
 - Keep interactive Sessions alive and reconnect from terminal or web clients.
-- Trigger work from GitHub, Jira, Linear, cron schedules, or generic webhooks.
+- Trigger work from GitHub, Jira, Vikunja, Linear, cron schedules, or generic webhooks.
 - Observe, limit, and operate agent workloads with familiar Kubernetes controls.
 
 ## How It Works
@@ -254,7 +254,7 @@ workflows running the project.
 | --- | --- |
 | Resource fields and CLI commands | [Reference](docs/reference.md) |
 | Ready-to-apply patterns | [Examples](examples/) |
-| GitHub, Jira, CI, and webhook connections | [Integration guide](docs/integration.md) |
+| GitHub, Jira, Vikunja, CI, and webhook connections | [Integration guide](docs/integration.md) |
 | Console and interactive Sessions | [Session example](examples/16-session/) and [Console guide](internal/manifests/charts/kelos/README.md#kelos-console) |
 | Custom agent containers | [Agent image interface](docs/agent-image-interface.md) |
 | Helm installation and upgrades | [Chart documentation](internal/manifests/charts/kelos/README.md) |

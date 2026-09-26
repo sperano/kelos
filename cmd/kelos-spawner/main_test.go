@@ -252,7 +252,7 @@ func TestRunCycleWithSource_AssignsTaskSpawnerCredentials(t *testing.T) {
 func TestBuildSource_GitHubIssuesWithBaseURL(t *testing.T) {
 	ts := newTaskSpawner("spawner", "default", nil)
 
-	src, err := buildSource(context.Background(), ts, "my-org", "my-repo", "https://github.example.com/api/v3", noToken, "", "", "", nil)
+	src, err := buildSource(context.Background(), ts, "my-org", "my-repo", "https://github.example.com/api/v3", noToken, "", "", "", "", 0, "", nil)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -275,7 +275,7 @@ func TestBuildSource_GitHubIssuesWithBaseURL(t *testing.T) {
 func TestBuildSource_GitHubIssuesDefaultBaseURL(t *testing.T) {
 	ts := newTaskSpawner("spawner", "default", nil)
 
-	src, err := buildSource(context.Background(), ts, "kelos-dev", "kelos", "", noToken, "", "", "", nil)
+	src, err := buildSource(context.Background(), ts, "kelos-dev", "kelos", "", noToken, "", "", "", "", 0, "", nil)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -303,7 +303,7 @@ func TestBuildSource_GitHubPullRequests(t *testing.T) {
 		},
 	}
 
-	src, err := buildSource(context.Background(), ts, "kelos-dev", "kelos", "https://github.example.com/api/v3", noToken, "", "", "", nil)
+	src, err := buildSource(context.Background(), ts, "kelos-dev", "kelos", "https://github.example.com/api/v3", noToken, "", "", "", "", 0, "", nil)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -363,7 +363,7 @@ func TestBuildSource_Jira(t *testing.T) {
 	t.Setenv("JIRA_USER", "user@example.com")
 	t.Setenv("JIRA_TOKEN", "jira-api-token")
 
-	src, err := buildSource(context.Background(), ts, "", "", "", noToken, "https://mycompany.atlassian.net", "PROJ", "status = Open", nil)
+	src, err := buildSource(context.Background(), ts, "", "", "", noToken, "https://mycompany.atlassian.net", "PROJ", "status = Open", "", 0, "", nil)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -386,6 +386,84 @@ func TestBuildSource_Jira(t *testing.T) {
 	}
 	if jiraSrc.Token != "jira-api-token" {
 		t.Errorf("Token = %q, want %q", jiraSrc.Token, "jira-api-token")
+	}
+}
+
+func TestBuildSource_Vikunja(t *testing.T) {
+	ts := &kelos.TaskSpawner{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "spawner",
+			Namespace: "default",
+		},
+		Spec: kelos.TaskSpawnerSpec{
+			When: kelos.When{
+				Vikunja: &kelos.Vikunja{
+					BaseURL:   "https://vikunja.example.com",
+					ProjectID: 49,
+					Filter:    "done = false && labels in 5",
+					SecretRef: kelos.SecretReference{Name: "vikunja-creds"},
+				},
+			},
+			TaskTemplate: kelos.TaskTemplate{
+				Type: "claude-code",
+				Credentials: &kelos.Credentials{
+					Type:      kelos.CredentialTypeOAuth,
+					SecretRef: &kelos.SecretReference{Name: "creds"},
+				},
+			},
+		},
+	}
+
+	t.Setenv("VIKUNJA_TOKEN", "vikunja-api-token")
+
+	src, err := buildSource(context.Background(), ts, "", "", "", noToken, "", "", "", "https://vikunja.example.com", 49, "done = false && labels in 5", nil)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	vikunjaSrc, ok := src.(*source.VikunjaSource)
+	if !ok {
+		t.Fatalf("Expected *source.VikunjaSource, got %T", src)
+	}
+	if vikunjaSrc.BaseURL != "https://vikunja.example.com" {
+		t.Errorf("BaseURL = %q, want %q", vikunjaSrc.BaseURL, "https://vikunja.example.com")
+	}
+	if vikunjaSrc.ProjectID != 49 {
+		t.Errorf("ProjectID = %d, want %d", vikunjaSrc.ProjectID, 49)
+	}
+	if vikunjaSrc.Filter != "done = false && labels in 5" {
+		t.Errorf("Filter = %q, want %q", vikunjaSrc.Filter, "done = false && labels in 5")
+	}
+	if vikunjaSrc.Token != "vikunja-api-token" {
+		t.Errorf("Token = %q, want %q", vikunjaSrc.Token, "vikunja-api-token")
+	}
+}
+
+func TestBuildSource_VikunjaMissingTokenFails(t *testing.T) {
+	ts := &kelos.TaskSpawner{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "spawner",
+			Namespace: "default",
+		},
+		Spec: kelos.TaskSpawnerSpec{
+			When: kelos.When{
+				Vikunja: &kelos.Vikunja{
+					BaseURL:   "https://vikunja.example.com",
+					ProjectID: 49,
+					SecretRef: kelos.SecretReference{Name: "vikunja-creds"},
+				},
+			},
+		},
+	}
+
+	t.Setenv("VIKUNJA_TOKEN", "")
+
+	_, err := buildSource(context.Background(), ts, "", "", "", noToken, "", "", "", "https://vikunja.example.com", 49, "", nil)
+	if err == nil {
+		t.Fatal("expected error when VIKUNJA_TOKEN is missing, got nil")
+	}
+	if !strings.Contains(err.Error(), "spawner") || !strings.Contains(err.Error(), "default") {
+		t.Errorf("expected error to name the TaskSpawner, got: %v", err)
 	}
 }
 
@@ -695,7 +773,7 @@ func TestRunCycle_BuildSourceFailureCountsDiscoveryErrorAndDuration(t *testing.T
 	beforeErrors := testutil.ToFloat64(discoveryErrorsTotal)
 	beforeDurationCount := histogramSampleCount(t, discoveryDurationSeconds)
 
-	err := runCycle(context.Background(), cl, key, "owner", "repo", "", noToken, "", "", "", nil)
+	err := runCycle(context.Background(), cl, key, "owner", "repo", "", noToken, "", "", "", "", 0, "", nil)
 	if err == nil {
 		t.Fatal("Expected buildSource error")
 	}
@@ -1380,7 +1458,7 @@ func TestBuildSource_PriorityLabelsPassedToSource(t *testing.T) {
 		"priority/imporant-soon",
 	}
 
-	src, err := buildSource(context.Background(), ts, "owner", "repo", "", noToken, "", "", "", nil)
+	src, err := buildSource(context.Background(), ts, "owner", "repo", "", noToken, "", "", "", "", 0, "", nil)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -1409,7 +1487,7 @@ func TestRunCycleWithSource_CommentFieldsPassedToSource(t *testing.T) {
 		},
 	}
 
-	src, err := buildSource(context.Background(), ts, "owner", "repo", "", noToken, "", "", "", nil)
+	src, err := buildSource(context.Background(), ts, "owner", "repo", "", noToken, "", "", "", "", 0, "", nil)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -1438,7 +1516,7 @@ func TestBuildSource_CommentPolicyPassedToIssueSource(t *testing.T) {
 		},
 	}
 
-	src, err := buildSource(context.Background(), ts, "owner", "repo", "", noToken, "", "", "", nil)
+	src, err := buildSource(context.Background(), ts, "owner", "repo", "", noToken, "", "", "", "", 0, "", nil)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -1478,7 +1556,7 @@ func TestBuildSource_CommentPolicyPassedToPullRequestSource(t *testing.T) {
 		},
 	}
 
-	src, err := buildSource(context.Background(), ts, "owner", "repo", "", noToken, "", "", "", nil)
+	src, err := buildSource(context.Background(), ts, "owner", "repo", "", noToken, "", "", "", "", 0, "", nil)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -2275,6 +2353,19 @@ func TestReportingEnabled_Jira(t *testing.T) {
 	}
 }
 
+func TestReportingEnabled_Vikunja(t *testing.T) {
+	ts := &kelos.TaskSpawner{
+		Spec: kelos.TaskSpawnerSpec{
+			When: kelos.When{
+				Vikunja: &kelos.Vikunja{},
+			},
+		},
+	}
+	if reportingEnabled(ts) {
+		t.Error("Expected reporting to be disabled for Vikunja source")
+	}
+}
+
 func TestChecksReportingEnabled_PREnabled(t *testing.T) {
 	ts := &kelos.TaskSpawner{
 		Spec: kelos.TaskSpawnerSpec{
@@ -2822,6 +2913,25 @@ func TestResolvedPollInterval_JiraSourceOverride(t *testing.T) {
 	got := resolvedPollInterval(ts)
 	if got != 1*time.Minute {
 		t.Fatalf("resolvedPollInterval = %v, want %v", got, 1*time.Minute)
+	}
+}
+
+func TestResolvedPollInterval_VikunjaSourceOverride(t *testing.T) {
+	ts := &kelos.TaskSpawner{
+		Spec: kelos.TaskSpawnerSpec{
+			When: kelos.When{
+				Vikunja: &kelos.Vikunja{
+					BaseURL:      "https://vikunja.example.com",
+					ProjectID:    49,
+					SecretRef:    kelos.SecretReference{Name: "vikunja-creds"},
+					PollInterval: "2m",
+				},
+			},
+		},
+	}
+	got := resolvedPollInterval(ts)
+	if got != 2*time.Minute {
+		t.Fatalf("resolvedPollInterval = %v, want %v", got, 2*time.Minute)
 	}
 }
 

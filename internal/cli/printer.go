@@ -217,6 +217,8 @@ func printTaskSpawnerTable(w io.Writer, spawners []kelos.TaskSpawner, allNamespa
 			source = "GitHub Pull Requests"
 		} else if s.Spec.When.Jira != nil {
 			source = s.Spec.When.Jira.Project
+		} else if s.Spec.When.Vikunja != nil {
+			source = fmt.Sprintf("Vikunja (project %d)", s.Spec.When.Vikunja.ProjectID)
 		} else if s.Spec.When.Cron != nil {
 			source = "cron: " + s.Spec.When.Cron.Schedule
 		} else if s.Spec.When.GitHubWebhook != nil {
@@ -255,6 +257,8 @@ func effectivePollInterval(ts *kelos.TaskSpawner) string {
 		return ts.Spec.When.GitHubPullRequests.PollInterval
 	case ts.Spec.When.Jira != nil && ts.Spec.When.Jira.PollInterval != "":
 		return ts.Spec.When.Jira.PollInterval
+	case ts.Spec.When.Vikunja != nil && ts.Spec.When.Vikunja.PollInterval != "":
+		return ts.Spec.When.Vikunja.PollInterval
 	}
 	return "5m"
 }
@@ -296,6 +300,13 @@ func printTaskSpawnerDetail(w io.Writer, ts *kelos.TaskSpawner) {
 		printField(w, "Project", jira.Project)
 		if jira.JQL != "" {
 			printField(w, "JQL", jira.JQL)
+		}
+	} else if ts.Spec.When.Vikunja != nil {
+		vikunja := ts.Spec.When.Vikunja
+		printField(w, "Source", "Vikunja")
+		printField(w, "Project ID", fmt.Sprintf("%d", vikunja.ProjectID))
+		if vikunja.Filter != "" {
+			printField(w, "Filter", vikunja.Filter)
 		}
 	} else if ts.Spec.When.Cron != nil {
 		printField(w, "Source", "Cron")

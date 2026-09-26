@@ -50,7 +50,7 @@ Kelos resources use `apiVersion: kelos.dev/v1alpha2`.
 | `Session` | Persistent interactive agent conversation | `spec.worker`, `spec.volumeClaimTemplate` |
 | `Workspace` | Git repository for the agent | `spec.repo`, `spec.ref`, `spec.secretRef`, `spec.remotes`, `spec.files` |
 | `AgentConfig` | Reusable instructions and tools | `spec.agentsMD`, `spec.plugins`, `spec.skills`, `spec.mcpServers` |
-| `TaskSpawner` | Creates Tasks from external sources | `spec.when.githubIssues`, `spec.when.githubPullRequests`, `spec.when.cron`, `spec.when.jira`, per-source `pollInterval`, `spec.taskTemplate`, `spec.maxConcurrency`, `spec.maxTotalTasks`, `spec.suspend` |
+| `TaskSpawner` | Creates Tasks from external sources | `spec.when.githubIssues`, `spec.when.githubPullRequests`, `spec.when.cron`, `spec.when.jira`, `spec.when.vikunja`, per-source `pollInterval`, `spec.taskTemplate`, `spec.maxConcurrency`, `spec.maxTotalTasks`, `spec.suspend` |
 
 Task phases are `Pending`, `Waiting`, `Running`, `Succeeded`, and `Failed`.
 Session phases are `Pending`, `Ready`, and `Failed`.
@@ -63,7 +63,7 @@ Session phases are `Pending`, `Ready`, and `Failed`.
 | Session examples, worker configuration, ephemeral or persistent storage | `references/session.yaml` |
 | Workspace examples, repository auth, remotes, injected files | `references/workspace.yaml` |
 | AgentConfig examples, plugins, skills, agents, MCP servers | `references/agentconfig.yaml` |
-| TaskSpawner examples, GitHub/Jira/cron sources, comment policy, concurrency | `references/taskspawner.yaml` |
+| TaskSpawner examples, GitHub/Jira/Vikunja/cron sources, comment policy, concurrency | `references/taskspawner.yaml` |
 | CLI flags, config file, supported agent types, install/uninstall | `references/cli.md` |
 | Pending/Waiting/Failed tasks, spawner issues, AgentConfig issues, push failures | `references/troubleshooting.md` |
 

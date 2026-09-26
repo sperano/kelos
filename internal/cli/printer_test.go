@@ -544,6 +544,39 @@ func TestPrintTaskSpawnerTableJira(t *testing.T) {
 	}
 }
 
+func TestPrintTaskSpawnerTableVikunja(t *testing.T) {
+	spawners := []kelos.TaskSpawner{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:              "vikunja-spawner",
+				CreationTimestamp: metav1.NewTime(time.Now().Add(-1 * time.Hour)),
+			},
+			Spec: kelos.TaskSpawnerSpec{
+				When: kelos.When{
+					Vikunja: &kelos.Vikunja{
+						BaseURL:   "https://vikunja.example.com",
+						ProjectID: 49,
+						SecretRef: kelos.SecretReference{
+							Name: "vikunja-secret",
+						},
+					},
+				},
+			},
+			Status: kelos.TaskSpawnerStatus{
+				Phase: kelos.TaskSpawnerPhaseRunning,
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	printTaskSpawnerTable(&buf, spawners, false)
+	output := buf.String()
+
+	if !strings.Contains(output, "Vikunja (project 49)") {
+		t.Errorf("expected Vikunja project as source in output, got %q", output)
+	}
+}
+
 func TestPrintTaskSpawnerTableGitHubWebhook(t *testing.T) {
 	spawners := []kelos.TaskSpawner{
 		{
@@ -868,6 +901,49 @@ func TestPrintTaskSpawnerDetailJira(t *testing.T) {
 	} {
 		if !strings.Contains(output, expected) {
 			t.Errorf("expected %q in detail output, got %q", expected, output)
+		}
+	}
+}
+
+func TestPrintTaskSpawnerDetailVikunja(t *testing.T) {
+	spawner := &kelos.TaskSpawner{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vikunja-spawner",
+			Namespace: "default",
+		},
+		Spec: kelos.TaskSpawnerSpec{
+			When: kelos.When{
+				Vikunja: &kelos.Vikunja{
+					BaseURL:   "https://vikunja.example.com",
+					ProjectID: 49,
+					Filter:    "done = false && labels in 5",
+					SecretRef: kelos.SecretReference{
+						Name: "vikunja-secret",
+					},
+				},
+			},
+			TaskTemplate: kelos.TaskTemplate{
+				Type: "claude-code",
+			},
+		},
+		Status: kelos.TaskSpawnerStatus{
+			Phase:             kelos.TaskSpawnerPhaseRunning,
+			TotalDiscovered:   5,
+			TotalTasksCreated: 3,
+		},
+	}
+
+	var buf bytes.Buffer
+	printTaskSpawnerDetail(&buf, spawner)
+	output := buf.String()
+
+	for _, pattern := range []string{
+		`(?m)^Source:\s+Vikunja$`,
+		`(?m)^Project ID:\s+49$`,
+		`(?m)^Filter:\s+done = false && labels in 5$`,
+	} {
+		if !regexp.MustCompile(pattern).MatchString(output) {
+			t.Errorf("expected pattern %q to match detail output, got %q", pattern, output)
 		}
 	}
 }
@@ -1531,6 +1607,17 @@ func TestEffectivePollInterval(t *testing.T) {
 				},
 			},
 			want: "1m",
+		},
+		{
+			name: "vikunja source override wins over default",
+			ts: &kelos.TaskSpawner{
+				Spec: kelos.TaskSpawnerSpec{
+					When: kelos.When{
+						Vikunja: &kelos.Vikunja{PollInterval: "2m"},
+					},
+				},
+			},
+			want: "2m",
 		},
 		{
 			name: "cron source uses default since it has no per-source override",

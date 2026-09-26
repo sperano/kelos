@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -179,6 +180,29 @@ func (b *DeploymentBuilder) buildPodParts(ts *kelos.TaskSpawner, workspace *kelo
 				},
 			},
 		)
+	}
+
+	if ts.Spec.When.Vikunja != nil {
+		vikunja := ts.Spec.When.Vikunja
+		args = append(args,
+			"--vikunja-base-url="+vikunja.BaseURL,
+			"--vikunja-project-id="+strconv.FormatInt(vikunja.ProjectID, 10),
+		)
+		if vikunja.Filter != "" {
+			args = append(args, "--vikunja-filter="+vikunja.Filter)
+		}
+
+		envVars = append(envVars, corev1.EnvVar{
+			Name: "VIKUNJA_TOKEN",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: vikunja.SecretRef.Name,
+					},
+					Key: "VIKUNJA_TOKEN",
+				},
+			},
+		})
 	}
 
 	labels := map[string]string{

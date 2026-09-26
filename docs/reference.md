@@ -994,6 +994,11 @@ to receive refreshed credentials during long-running work.
 | `spec.when.webhook.excludeFilters[].pattern` | Exclude the delivery on a regex match against the extracted field value (mutually exclusive with `value`) | Conditional |
 | `spec.when.webhook.gatewayRef.name` | Bind this source to a [WebhookGateway](#webhookgateway) in the same namespace whose `spec.generic` field is set. Generic gateway deliveries remain unauthenticated, and the per-source server ignores this spawner when the reference is present | No |
 | `spec.when.jira.pollInterval` | Per-source poll interval (e.g., `"30s"`, `"5m"`). Defaults to `5m` when omitted | No |
+| `spec.when.vikunja.baseUrl` | [Vikunja](https://vikunja.io) instance URL, without the `/api/v1` suffix (e.g., `"https://vikunja.example.com"`) | Yes (when using vikunja) |
+| `spec.when.vikunja.projectId` | Numeric Vikunja project ID | Yes (when using vikunja) |
+| `spec.when.vikunja.filter` | Vikunja filter query, scoped to the project (do not include a `project = ...` clause). When empty, defaults to `"done = false"` (open tasks only); when set, used as-is | No |
+| `spec.when.vikunja.secretRef.name` | Secret containing a `VIKUNJA_TOKEN` key (a Vikunja API token, sent as a Bearer token). Stored only in `v1alpha2`; a client that writes the spawner through `v1alpha1` preserves the whole `vikunja` source in an annotation, so stripping that annotation drops it | Yes (when using vikunja) |
+| `spec.when.vikunja.pollInterval` | Per-source poll interval (e.g., `"30s"`, `"5m"`). Defaults to `5m` when omitted | No |
 | `spec.when.cron.schedule` | Cron schedule expression (e.g., `"0 * * * *"`) | Yes (when using cron) |
 | `spec.credentials[].name` | Unique name for a credential distributed by this TaskSpawner. The name is recorded in the `kelos.dev/spawner-credential` label on generated Tasks | Yes when `spec.credentials` is set |
 | `spec.credentials[].type` | Credential type (`api-key` or `oauth`) | Yes when `spec.credentials` is set |
@@ -1060,7 +1065,7 @@ spec:
 
 ### Generated Task Names
 
-For `githubIssues`, `githubPullRequests`, `jira`, and `cron` sources, Kelos first
+For `githubIssues`, `githubPullRequests`, `jira`, `vikunja`, and `cron` sources, Kelos first
 lowercases the work item ID when forming the Task name:
 `<TaskSpawner name>-<lowercase work item ID>`.
 
@@ -1133,42 +1138,42 @@ TaskSpawner and any Secrets referenced by context sources.
 
 The `promptTemplate` field uses Go `text/template` syntax. Available variables depend on the source type:
 
-| Variable | Description | GitHub Issues | GitHub Pull Requests | GitHub Webhook | Jira | Linear Webhook | Generic Webhook | Cron |
-|----------|-------------|---------------|----------------------|----------------|------|----------------|-----------------|------|
-| `{{.ID}}` | Unique identifier | Issue/PR number as string (e.g., `"42"`) | Pull request number as string | Issue/PR number or commit ID | Jira issue key (e.g., `"ENG-42"`) | Linear resource ID | Mapped `id` field (required) | Date-time string (e.g., `"20260207-0900"`) |
-| `{{.Number}}` | Issue or PR number | Issue/PR number (e.g., `42`) | Pull request number | Issue/PR number (when available) | Numeric suffix of the Jira key (e.g., `42` for `ENG-42`); `0` if the key has no `-N` suffix | Empty | Empty | `0` |
-| `{{.Title}}` | Title of the work item | Issue/PR title | Pull request title | Issue/PR title or "Push to &lt;branch&gt;" | Issue summary | Resource title | Mapped `title` field (if present) | Trigger time (RFC3339) |
-| `{{.Body}}` | Body text | Issue/PR body | Pull request body | Issue/PR body | Empty (description is not fetched; tracked in [#990](https://github.com/kelos-dev/kelos/issues/990)) | Empty | Mapped `body` field (if present) | Empty |
-| `{{.URL}}` | URL to the source item | GitHub HTML URL | GitHub PR URL | Issue/PR HTML URL | Jira browse URL (e.g., `https://your-org.atlassian.net/browse/ENG-42`) | Empty | Mapped `url` field (if present) | Empty |
-| `{{.Labels}}` | Comma-separated labels | Issue/PR labels | Pull request labels | Empty | Issue labels | Issue labels | Empty | Empty |
-| `{{.Comments}}` | Concatenated comments | Issue/PR comments | PR conversation comments | Empty | Issue comments | Empty | Empty | Empty |
-| `{{.Kind}}` | Type of work item | `"Issue"` or `"PR"` | `"PR"` | `"webhook"` | Jira issue type name (e.g., `"Bug"`, `"Story"`), or `"Issue"` if empty | `"LinearWebhook"` | `"GenericWebhook"` | `"Issue"` |
-| `{{.Event}}` | GitHub event type | Empty | Empty | Event type (e.g., `"issues"`, `"pull_request"`, `"push"`) | Empty | Empty | Empty | Empty |
-| `{{.Action}}` | Webhook action | Empty | Empty | Action (e.g., `"opened"`, `"created"`, `"submitted"`) | Empty | Action (e.g., `"create"`, `"update"`, `"remove"`) | Empty | Empty |
-| `{{.Sender}}` | Event sender username | Empty | Empty | Username of person who triggered the event | Empty | Empty | Empty | Empty |
-| `{{.Branch}}` | Git branch to update | Empty | PR head branch (e.g., `"kelos-task-42"`) | PR source branch or push branch | Empty | Empty | Empty | Empty |
-| `{{.Ref}}` | Git ref | Empty | Empty | Git ref for push events (e.g., `"refs/heads/main"`) or create events (ref name) | Empty | Empty | Empty | Empty |
-| `{{.Tag}}` | Tag name | Empty | Empty | Tag name for `create` (ref_type=tag) and `release` events | Empty | Empty | Empty | Empty |
-| `{{.RefType}}` | Ref type for create events | Empty | Empty | `"branch"`, `"tag"`, or `"repository"` (create events only) | Empty | Empty | Empty | Empty |
-| `{{.Repository}}` | Full repository name | Empty | Empty | Repository in `owner/repo` format | Empty | Empty | Empty | Empty |
-| `{{.RepositoryOwner}}` | Repository owner | Empty | Empty | Repository owner login | Empty | Empty | Empty | Empty |
-| `{{.RepositoryName}}` | Repository name | Empty | Empty | Repository name only | Empty | Empty | Empty | Empty |
-| `{{.Payload}}` | Raw event payload | Empty | Empty | Full parsed GitHub webhook payload | Empty | Full parsed Linear webhook payload | Full parsed JSON body | Empty |
-| `{{.ReviewState}}` | Aggregated review state | Empty | `approved`, `changes_requested`, or empty | Empty | Empty | Empty | Empty | Empty |
-| `{{.ReviewComments}}` | Formatted inline review comments | Empty | Inline PR review comments | Empty | Empty | Empty | Empty | Empty |
-| `{{.Type}}` | Resource type | Empty | Empty | Empty | Empty | Resource type (e.g., `"Issue"`, `"Comment"`) | Empty | Empty |
-| `{{.State}}` | Workflow state | Empty | Empty | Empty | Empty | Current state name (e.g., `"Todo"`, `"In Progress"`) | Empty | Empty |
-| `{{.IssueID}}` | Parent issue ID | Empty | Empty | Empty | Empty | Parent issue ID (Comment events only) | Empty | Empty |
-| `{{.CommentBody}}` | Comment or review body | Empty | Empty | Comment/review body (`issue_comment`, `pull_request_review`, `pull_request_review_comment` events) | Empty | Empty | Empty | Empty |
-| `{{.CommentURL}}` | Comment or review URL | Empty | Empty | Comment/review HTML URL (`issue_comment`, `pull_request_review`, `pull_request_review_comment` events) | Empty | Empty | Empty | Empty |
-| `{{.ChangedFiles}}` | Changed file paths (list) | Empty | Empty | Push: files from the payload. PR: changed files, but **only** when a matching filter's `filePatterns` forced a fetch (otherwise empty; see note below). Iterate with `{{range .ChangedFiles}}` | Empty | Empty | Empty | Empty |
-| `{{.CheckName}}` | Check run name | Empty | Empty | Check run name (`check_run` events, e.g. `"lint"`) | Empty | Empty | Empty | Empty |
-| `{{.Conclusion}}` | Check run conclusion | Empty | Empty | Check run conclusion (`check_run` events, e.g. `"failure"`) | Empty | Empty | Empty | Empty |
-| `{{.CheckRunURL}}` | Check run URL | Empty | Empty | Link to the check run / CI logs (`check_run` events) | Empty | Empty | Empty | Empty |
-| `{{.HeadSHA}}` | Head commit SHA | Empty | Empty | Commit SHA under test (`check_run` events) | Empty | Empty | Empty | Empty |
-| `{{.CheckApp}}` | Check app name | Empty | Empty | App that produced the check (`check_run` events, e.g. `"GitHub Actions"`) | Empty | Empty | Empty | Empty |
-| `{{.Time}}` | Trigger time (RFC3339) | Empty | Empty | Empty | Empty | Empty | Empty | Cron tick time (e.g., `"2026-02-07T09:00:00Z"`) |
-| `{{.Schedule}}` | Cron schedule expression | Empty | Empty | Empty | Empty | Empty | Empty | Schedule string (e.g., `"0 * * * *"`) |
+| Variable | Description | GitHub Issues | GitHub Pull Requests | GitHub Webhook | Jira | Vikunja | Linear Webhook | Generic Webhook | Cron |
+|----------|-------------|---------------|----------------------|----------------|------|------|----------------|-----------------|------|
+| `{{.ID}}` | Unique identifier | Issue/PR number as string (e.g., `"42"`) | Pull request number as string | Issue/PR number or commit ID | Jira issue key (e.g., `"ENG-42"`) | Task ID as string (e.g., `"42"`) | Linear resource ID | Mapped `id` field (required) | Date-time string (e.g., `"20260207-0900"`) |
+| `{{.Number}}` | Issue or PR number | Issue/PR number (e.g., `42`) | Pull request number | Issue/PR number (when available) | Numeric suffix of the Jira key (e.g., `42` for `ENG-42`); `0` if the key has no `-N` suffix | Task ID (e.g., `42`) | Empty | Empty | `0` |
+| `{{.Title}}` | Title of the work item | Issue/PR title | Pull request title | Issue/PR title or "Push to &lt;branch&gt;" | Issue summary | Task title | Resource title | Mapped `title` field (if present) | Trigger time (RFC3339) |
+| `{{.Body}}` | Body text | Issue/PR body | Pull request body | Issue/PR body | Empty (description is not fetched; tracked in [#990](https://github.com/kelos-dev/kelos/issues/990)) | Task description (HTML, passed through unchanged) | Empty | Mapped `body` field (if present) | Empty |
+| `{{.URL}}` | URL to the source item | GitHub HTML URL | GitHub PR URL | Issue/PR HTML URL | Jira browse URL (e.g., `https://your-org.atlassian.net/browse/ENG-42`) | Vikunja task URL (e.g., `https://vikunja.example.com/tasks/42`) | Empty | Mapped `url` field (if present) | Empty |
+| `{{.Labels}}` | Comma-separated labels | Issue/PR labels | Pull request labels | Empty | Issue labels | Task label titles | Issue labels | Empty | Empty |
+| `{{.Comments}}` | Concatenated comments | Issue/PR comments | PR conversation comments | Empty | Issue comments | Concatenated task comments (HTML, passed through unchanged) | Empty | Empty | Empty |
+| `{{.Kind}}` | Type of work item | `"Issue"` or `"PR"` | `"PR"` | `"webhook"` | Jira issue type name (e.g., `"Bug"`, `"Story"`), or `"Issue"` if empty | `"Task"` | `"LinearWebhook"` | `"GenericWebhook"` | `"Issue"` |
+| `{{.Event}}` | GitHub event type | Empty | Empty | Event type (e.g., `"issues"`, `"pull_request"`, `"push"`) | Empty | Empty | Empty | Empty | Empty |
+| `{{.Action}}` | Webhook action | Empty | Empty | Action (e.g., `"opened"`, `"created"`, `"submitted"`) | Empty | Empty | Action (e.g., `"create"`, `"update"`, `"remove"`) | Empty | Empty |
+| `{{.Sender}}` | Event sender username | Empty | Empty | Username of person who triggered the event | Empty | Empty | Empty | Empty | Empty |
+| `{{.Branch}}` | Git branch to update | Empty | PR head branch (e.g., `"kelos-task-42"`) | PR source branch or push branch | Empty | Empty | Empty | Empty | Empty |
+| `{{.Ref}}` | Git ref | Empty | Empty | Git ref for push events (e.g., `"refs/heads/main"`) or create events (ref name) | Empty | Empty | Empty | Empty | Empty |
+| `{{.Tag}}` | Tag name | Empty | Empty | Tag name for `create` (ref_type=tag) and `release` events | Empty | Empty | Empty | Empty | Empty |
+| `{{.RefType}}` | Ref type for create events | Empty | Empty | `"branch"`, `"tag"`, or `"repository"` (create events only) | Empty | Empty | Empty | Empty | Empty |
+| `{{.Repository}}` | Full repository name | Empty | Empty | Repository in `owner/repo` format | Empty | Empty | Empty | Empty | Empty |
+| `{{.RepositoryOwner}}` | Repository owner | Empty | Empty | Repository owner login | Empty | Empty | Empty | Empty | Empty |
+| `{{.RepositoryName}}` | Repository name | Empty | Empty | Repository name only | Empty | Empty | Empty | Empty | Empty |
+| `{{.Payload}}` | Raw event payload | Empty | Empty | Full parsed GitHub webhook payload | Empty | Empty | Full parsed Linear webhook payload | Full parsed JSON body | Empty |
+| `{{.ReviewState}}` | Aggregated review state | Empty | `approved`, `changes_requested`, or empty | Empty | Empty | Empty | Empty | Empty | Empty |
+| `{{.ReviewComments}}` | Formatted inline review comments | Empty | Inline PR review comments | Empty | Empty | Empty | Empty | Empty | Empty |
+| `{{.Type}}` | Resource type | Empty | Empty | Empty | Empty | Empty | Resource type (e.g., `"Issue"`, `"Comment"`) | Empty | Empty |
+| `{{.State}}` | Workflow state | Empty | Empty | Empty | Empty | Empty | Current state name (e.g., `"Todo"`, `"In Progress"`) | Empty | Empty |
+| `{{.IssueID}}` | Parent issue ID | Empty | Empty | Empty | Empty | Empty | Parent issue ID (Comment events only) | Empty | Empty |
+| `{{.CommentBody}}` | Comment or review body | Empty | Empty | Comment/review body (`issue_comment`, `pull_request_review`, `pull_request_review_comment` events) | Empty | Empty | Empty | Empty | Empty |
+| `{{.CommentURL}}` | Comment or review URL | Empty | Empty | Comment/review HTML URL (`issue_comment`, `pull_request_review`, `pull_request_review_comment` events) | Empty | Empty | Empty | Empty | Empty |
+| `{{.ChangedFiles}}` | Changed file paths (list) | Empty | Empty | Push: files from the payload. PR: changed files, but **only** when a matching filter's `filePatterns` forced a fetch (otherwise empty; see note below). Iterate with `{{range .ChangedFiles}}` | Empty | Empty | Empty | Empty | Empty |
+| `{{.CheckName}}` | Check run name | Empty | Empty | Check run name (`check_run` events, e.g. `"lint"`) | Empty | Empty | Empty | Empty | Empty |
+| `{{.Conclusion}}` | Check run conclusion | Empty | Empty | Check run conclusion (`check_run` events, e.g. `"failure"`) | Empty | Empty | Empty | Empty | Empty |
+| `{{.CheckRunURL}}` | Check run URL | Empty | Empty | Link to the check run / CI logs (`check_run` events) | Empty | Empty | Empty | Empty | Empty |
+| `{{.HeadSHA}}` | Head commit SHA | Empty | Empty | Commit SHA under test (`check_run` events) | Empty | Empty | Empty | Empty | Empty |
+| `{{.CheckApp}}` | Check app name | Empty | Empty | App that produced the check (`check_run` events, e.g. `"GitHub Actions"`) | Empty | Empty | Empty | Empty | Empty |
+| `{{.Time}}` | Trigger time (RFC3339) | Empty | Empty | Empty | Empty | Empty | Empty | Empty | Cron tick time (e.g., `"2026-02-07T09:00:00Z"`) |
+| `{{.Schedule}}` | Cron schedule expression | Empty | Empty | Empty | Empty | Empty | Empty | Empty | Schedule string (e.g., `"0 * * * *"`) |
 
 > **Generic Webhook only:** any additional keys declared in `spec.when.webhook.fieldMapping` are also exposed as top-level template variables (e.g., `fieldMapping: {severity: "$.level"}` makes `{{.severity}}` available).
 
