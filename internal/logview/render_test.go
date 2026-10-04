@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/muesli/termenv"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden files in testdata")
@@ -68,16 +70,39 @@ func assertGolden(t *testing.T, path, got string) {
 	}
 }
 
-func TestRenderColorStylesDiffLines(t *testing.T) {
+func renderDiff(profile termenv.Profile, width int) string {
+	var out bytes.Buffer
+	renderer := newRendererWithProfile(&out, Options{Color: true, Width: width}, profile)
+	renderer.Render(ToolCall{ID: "e", Name: "Update", Summary: "a.go", Diff: []Hunk{replacementHunk("x := 1", "\tx := 2")}})
+	renderer.Render(ToolResult{ID: "e"})
+	return out.String()
+}
+
+func TestRenderColorsDiffTextOnBasicTerminals(t *testing.T) {
 	const (
 		ansiGreen = "\x1b[32m"
 		ansiRed   = "\x1b[31m"
 	)
-	got := renderFixture(t, "opencode", AgentOpenCode, Options{Color: true})
-	for _, want := range []string{ansiGreen + "+ x := 2", ansiRed + "- x := 1"} {
+	got := renderDiff(termenv.ANSI, 0)
+	for _, want := range []string{ansiGreen + "+     x := 2", ansiRed + "- x := 1"} {
 		if !strings.Contains(got, want) {
-			t.Errorf("colored output lacks %q:\n%s", want, got)
+			t.Errorf("colored output lacks %q:\n%q", want, got)
 		}
+	}
+}
+
+func TestRenderTintsDiffLinesToTerminalWidth(t *testing.T) {
+	const (
+		width          = 40
+		trueColorTint  = "\x1b[48;2;"
+		paddedAddition = "+     x := 2" + "                 "
+	)
+	got := renderDiff(termenv.TrueColor, width)
+	if !strings.Contains(got, trueColorTint) {
+		t.Errorf("output lacks a background tint:\n%q", got)
+	}
+	if !strings.Contains(got, paddedAddition) {
+		t.Errorf("added line is not padded to %d columns:\n%q", width, got)
 	}
 }
 

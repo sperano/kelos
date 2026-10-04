@@ -66,6 +66,16 @@ func isColorTerminal(f *os.File) bool {
 	return term.IsTerminal(int(f.Fd()))
 }
 
+// terminalWidth returns f's width in columns, or 0 when f is not a
+// terminal.
+func terminalWidth(f *os.File) int {
+	width, _, err := term.GetSize(int(f.Fd()))
+	if err != nil {
+		return 0
+	}
+	return width
+}
+
 // write prints agentType's log stream to stdout, and to stderr for the
 // status lines of the plain format.
 func (o logOutput) write(agentType string, stream io.Reader) error {
@@ -76,7 +86,7 @@ func (o logOutput) write(agentType string, stream io.Reader) error {
 		}
 		return nil
 	case o.pretty:
-		renderer := logview.NewRenderer(os.Stdout, logview.Options{Color: true, Verbose: o.verbose})
+		renderer := logview.NewRenderer(os.Stdout, logview.Options{Color: true, Verbose: o.verbose, Width: terminalWidth(os.Stdout)})
 		// Close a streamed line even when parsing stops on an error.
 		defer renderer.Finish()
 		return logview.Parse(agentType, stream, renderer.Render)

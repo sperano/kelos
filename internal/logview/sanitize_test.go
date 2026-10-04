@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/muesli/termenv"
 )
 
 func TestCleanRemovesControlCharacters(t *testing.T) {
@@ -23,7 +25,7 @@ func TestCleanRemovesControlCharacters(t *testing.T) {
 
 func TestRenderStripsEscapesFromToolOutput(t *testing.T) {
 	var out bytes.Buffer
-	renderer := NewRenderer(&out, Options{Color: true})
+	renderer := newRendererWithProfile(&out, Options{Color: true}, termenv.TrueColor)
 	renderer.Render(ToolCall{ID: "a", Name: "Bash", Summary: "cat \x1b[2Jevil"})
 	renderer.Render(ToolResult{ID: "a", Output: "\x1b]0;title\x07\rhidden"})
 

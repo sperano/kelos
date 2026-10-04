@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/muesli/termenv"
 )
 
 // Layout of a rendered entry, after Claude Code.
@@ -44,6 +46,9 @@ type Options struct {
 	// Verbose shows full tool output, thinking, diffs and sub-agent
 	// activity instead of previews.
 	Verbose bool
+	// Width is the terminal width in columns, or 0 when unknown. Tinted
+	// diff lines are padded to it.
+	Width int
 }
 
 // Renderer writes events in a Claude Code-like layout.
@@ -51,6 +56,7 @@ type Renderer struct {
 	w       io.Writer
 	styles  styles
 	verbose bool
+	width   int
 	// calls holds tool calls waiting for their result, by ID.
 	calls map[string]ToolCall
 	// started is set once anything was written; entries after the first
@@ -70,10 +76,21 @@ type Renderer struct {
 
 // NewRenderer returns a Renderer writing to w.
 func NewRenderer(w io.Writer, opts Options) *Renderer {
+	profile := termenv.Ascii
+	if opts.Color {
+		profile = detectProfile(w)
+	}
+	return newRendererWithProfile(w, opts, profile)
+}
+
+// newRendererWithProfile returns a Renderer using profile instead of
+// detecting it from the terminal.
+func newRendererWithProfile(w io.Writer, opts Options, profile termenv.Profile) *Renderer {
 	return &Renderer{
 		w:       w,
-		styles:  newStyles(w, opts.Color),
+		styles:  newStyles(w, profile),
 		verbose: opts.Verbose,
+		width:   opts.Width,
 		calls:   map[string]ToolCall{},
 	}
 }

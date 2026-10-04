@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 // Glyphs of the todo list and the run footer.
@@ -17,6 +19,8 @@ const (
 	failureMark   = "✗ "
 	lineNumberFmt = "%5d "
 	noLineNumber  = "      "
+	// tabSpaces replaces tabs in diff lines so padding can be measured.
+	tabSpaces = "    "
 )
 
 // Number formats of the footer.
@@ -103,11 +107,11 @@ func (r *Renderer) hunkLines(hunk Hunk) []string {
 		switch line.Op {
 		case DiffRemove:
 			number = lineNumber(numbered, oldLine)
-			styled = r.styles.removed.Render("- " + line.Text)
+			styled = r.styles.removed.Render(r.padDiffLine("- " + line.Text))
 			oldLine++
 		case DiffAdd:
 			number = lineNumber(numbered, newLine)
-			styled = r.styles.added.Render("+ " + line.Text)
+			styled = r.styles.added.Render(r.padDiffLine("+ " + line.Text))
 			newLine++
 		default:
 			number = lineNumber(numbered, newLine)
@@ -118,6 +122,20 @@ func (r *Renderer) hunkLines(hunk Hunk) []string {
 		lines = append(lines, r.styles.muted.Render(number)+styled)
 	}
 	return lines
+}
+
+// padDiffLine expands tabs and, when lines are tinted and the terminal
+// width is known, pads text so the tint spans the whole line.
+func (r *Renderer) padDiffLine(text string) string {
+	text = strings.ReplaceAll(text, "\t", tabSpaces)
+	if !r.styles.tinted || r.width == 0 {
+		return text
+	}
+	available := r.width - len(resultIndent) - len(noLineNumber)
+	if gap := available - lipgloss.Width(text); gap > 0 {
+		text += strings.Repeat(" ", gap)
+	}
+	return text
 }
 
 func lineNumber(numbered bool, n int) string {
