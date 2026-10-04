@@ -16,7 +16,6 @@ const (
 )
 
 type styles struct {
-	plain    lipgloss.Style
 	muted    lipgloss.Style
 	thinking lipgloss.Style
 	bullet   lipgloss.Style
@@ -35,7 +34,11 @@ type styles struct {
 func newStyles(w io.Writer, color bool) styles {
 	renderer := lipgloss.NewRenderer(w)
 	base := renderer.NewStyle()
-	s := styles{base, base, base, base, base, base, base, base, base, base, base, base}
+	s := styles{
+		muted: base, thinking: base, bullet: base, tool: base,
+		added: base, removed: base, success: base, warning: base,
+		failure: base, active: base, done: base,
+	}
 	if !color {
 		renderer.SetColorProfile(termenv.Ascii)
 		return s

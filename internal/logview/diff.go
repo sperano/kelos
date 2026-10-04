@@ -98,6 +98,7 @@ func parseDiffLine(line string) DiffLine {
 	if line == "" {
 		return DiffLine{Op: DiffContext}
 	}
+	// The first byte is the unified diff prefix of the line.
 	switch op := DiffOp(line[0]); op {
 	case DiffAdd, DiffRemove, DiffContext:
 		return DiffLine{Op: op, Text: line[1:]}

@@ -19,9 +19,13 @@ const (
 	noLineNumber  = "      "
 )
 
+// Number formats of the footer.
 const (
-	thousand = 1_000
-	million  = 1_000_000
+	thousand     = 1_000
+	million      = 1_000_000
+	thousandsFmt = "%.1fk"
+	millionsFmt  = "%.2fM"
+	costFmt      = "$%.4f"
 )
 
 func (r *Renderer) renderToolResult(result ToolResult) {
@@ -38,7 +42,11 @@ func (r *Renderer) renderToolResult(result ToolResult) {
 	case result.IsError:
 		r.renderOutput(nested, r.styles.failure.Render("Error: ")+firstLine(result.Output), restLines(result.Output))
 	case len(diff) > 0:
-		r.renderDiff(nested, call.Summary, diff)
+		path := call.Summary
+		if path == "" {
+			path = unknownPath
+		}
+		r.renderDiff(nested, path, diff)
 	case call.WriteLines > 0:
 		r.line(nested, resultPrefix+fmt.Sprintf("Wrote %d lines to %s", call.WriteLines, call.Summary))
 	case len(call.Todos) > 0:
@@ -54,7 +62,7 @@ func (r *Renderer) renderToolResult(result ToolResult) {
 // preview of the following lines.
 func (r *Renderer) renderOutput(nested bool, first string, rest []string) {
 	r.line(nested, resultPrefix+r.clip(first))
-	shown, hidden := r.preview(rest, resultPreviewLines-1)
+	shown, hidden := r.preview(rest, resultRestPreviewLines)
 	for _, line := range shown {
 		r.line(nested, resultIndent+r.styles.muted.Render(r.clip(line)))
 	}
@@ -165,7 +173,7 @@ func resultFacts(result Result) string {
 		facts = append(facts, plural(result.Turns, "turn"))
 	}
 	if result.CostUSD > 0 {
-		facts = append(facts, fmt.Sprintf("$%.4f", result.CostUSD))
+		facts = append(facts, fmt.Sprintf(costFmt, result.CostUSD))
 	}
 	if result.InputTokens > 0 || result.OutputTokens > 0 {
 		tokens := humanCount(result.InputTokens) + " in"
@@ -187,9 +195,9 @@ func resultFacts(result Result) string {
 func humanCount(n int) string {
 	switch {
 	case n >= million:
-		return fmt.Sprintf("%.2fM", float64(n)/million)
+		return fmt.Sprintf(millionsFmt, float64(n)/million)
 	case n >= thousand:
-		return fmt.Sprintf("%.1fk", float64(n)/thousand)
+		return fmt.Sprintf(thousandsFmt, float64(n)/thousand)
 	default:
 		return fmt.Sprintf("%d", n)
 	}

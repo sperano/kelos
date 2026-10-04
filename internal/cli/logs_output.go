@@ -30,8 +30,8 @@ func (f *logOutputFlags) register(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.color, "color", colorAuto,
 		"render agent output in color: auto (when stdout is a terminal and NO_COLOR is unset), always, or never (plain text)")
 	cmd.Flags().BoolVarP(&f.verbose, "verbose", "v", false,
-		"show full tool output, diffs, reasoning and sub-agent activity in color output")
-	cmd.Flags().BoolVar(&f.raw, "raw", false, "print the agent's NDJSON output unparsed")
+		"show full tool output, diffs, reasoning and sub-agent activity (color output only)")
+	cmd.Flags().BoolVar(&f.raw, "raw", false, "print the agent's NDJSON output unparsed, ignoring --color and --verbose")
 }
 
 // logOutput is how agent output is printed once the flags are resolved.
@@ -48,6 +48,7 @@ func (f *logOutputFlags) resolve(stdout *os.File) (logOutput, error) {
 	case colorAlways:
 		out.pretty = true
 	case colorNever:
+		// Plain output.
 	case colorAuto:
 		out.pretty = isColorTerminal(stdout)
 	default:
@@ -76,6 +77,7 @@ func (o logOutput) write(agentType string, stream io.Reader) error {
 		return nil
 	case o.pretty:
 		renderer := logview.NewRenderer(os.Stdout, logview.Options{Color: true, Verbose: o.verbose})
+		// Close a streamed line even when parsing stops on an error.
 		defer renderer.Finish()
 		return logview.Parse(agentType, stream, renderer.Render)
 	default:

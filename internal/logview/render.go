@@ -3,6 +3,7 @@ package logview
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"unicode/utf8"
 )
@@ -18,15 +19,22 @@ const (
 	ellipsis      = "…"
 	verboseHint   = " (-v to show all)"
 	noOutputLabel = "(no output)"
+	// unknownCallName heads a result whose tool call was not seen.
+	unknownCallName = "Tool result"
+	// unknownPath names an edited file whose path was not reported.
+	unknownPath = "file"
 )
 
 // Limits applied unless the renderer is verbose.
 const (
-	maxSummaryRunes      = 160
-	maxLineRunes         = 200
-	resultPreviewLines   = 3
-	thinkingPreviewLines = 3
-	maxDiffLines         = 40
+	maxSummaryRunes = 160
+	// resultRestPreviewLines is how many output lines are shown after the
+	// first one, which sits on the result line itself.
+	resultRestPreviewLines = resultPreviewLines - 1
+	maxLineRunes           = 200
+	resultPreviewLines     = 3
+	thinkingPreviewLines   = 3
+	maxDiffLines           = 40
 )
 
 // Options configures a Renderer.
@@ -55,6 +63,9 @@ type Renderer struct {
 	lastCallID string
 	// inRaw is set while consecutive raw lines are written as one block.
 	inRaw bool
+	// lastTodos is the todo list published last, so an unchanged
+	// republication (Codex repeats it on completion) is not shown again.
+	lastTodos []Todo
 }
 
 // NewRenderer returns a Renderer writing to w.
@@ -78,14 +89,15 @@ func (r *Renderer) Finish() {
 
 // Render writes one event.
 func (r *Renderer) Render(event Event) {
+	if isNested(event) && !r.verbose {
+		return
+	}
+	event = sanitize(event)
 	if text, ok := event.(Text); ok && text.Delta && r.inDelta {
 		fmt.Fprint(r.w, text.Text)
 		return
 	}
 	r.Finish()
-	if isNested(event) && !r.verbose {
-		return
-	}
 	r.render(event)
 }
 
@@ -104,6 +116,10 @@ func (r *Renderer) render(event Event) {
 	case FileChange:
 		r.entry(false, r.bullet()+r.callTitle(fileChangeVerb(e.Kind), e.Path))
 	case Todos:
+		if slices.Equal(e.Items, r.lastTodos) {
+			return
+		}
+		r.lastTodos = e.Items
 		r.entry(false, r.bullet()+r.styles.tool.Render("Todos"))
 		r.renderTodos(e.Items, false)
 	case Error:
@@ -209,12 +225,16 @@ func (r *Renderer) renderToolCall(call ToolCall) {
 // resultHeader repeats a call's header when other entries were written
 // since it, as happens with parallel tool calls, so the result is not
 // shown under the wrong call.
+// A result whose call was never seen gets a generic header.
 func (r *Renderer) resultHeader(result ToolResult, call ToolCall, known bool) {
-	if !known || result.ID == r.lastCallID {
-		return
+	switch {
+	case !known:
+		r.entry(result.Nested, r.styles.muted.Render(bulletMark+unknownCallName))
+		r.lastCallID = ""
+	case result.ID != r.lastCallID:
+		r.entry(result.Nested, r.styles.muted.Render(bulletMark+call.Name+r.summarySuffix(call.Summary)))
+		r.lastCallID = result.ID
 	}
-	r.entry(result.Nested, r.styles.muted.Render(bulletMark+call.Name+r.summarySuffix(call.Summary)))
-	r.lastCallID = result.ID
 }
 
 // callTitle renders "Name(summary)" with the summary on one line.

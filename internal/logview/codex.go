@@ -104,10 +104,11 @@ func emitCodexItemStarted(item *codexItem, emit func(Event)) {
 	case "mcp_tool_call":
 		emit(ToolCall{ID: item.ID, Name: item.Server + "." + item.Tool, Summary: compactJSON(item.Arguments)})
 	case "web_search":
-		emit(ToolCall{ID: item.ID, Name: "WebSearch", Summary: item.Query})
+		// Codex reports no result for these, so they carry no ID to wait on.
+		emit(ToolCall{Name: "WebSearch", Summary: item.Query})
 	case "collab_tool_call":
 		if item.Tool != codexCollabWait {
-			emit(ToolCall{ID: item.ID, Name: "Agent", Summary: strings.TrimSpace(item.Tool + " " + item.Prompt)})
+			emit(ToolCall{Name: "Agent", Summary: strings.TrimSpace(item.Tool + " " + item.Prompt)})
 		}
 	case "todo_list":
 		emit(Todos{Items: parseTodos(item.Items)})

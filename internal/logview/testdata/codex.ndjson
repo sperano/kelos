@@ -13,5 +13,6 @@
 {"type":"item.completed","item":{"id":"item_6","type":"file_change","changes":[{"path":"/workspace/repo/main.go","kind":"update"},{"path":"/workspace/repo/greet.go","kind":"add"}],"status":"completed"}}
 {"type":"item.started","item":{"id":"item_7","type":"collab_tool_call","tool":"wait","prompt":null,"status":"in_progress"}}
 {"type":"item.updated","item":{"id":"item_5","type":"todo_list","items":[{"text":"Edit main.go","completed":true},{"text":"Run tests","completed":false}]}}
+{"type":"item.completed","item":{"id":"item_5","type":"todo_list","items":[{"text":"Edit main.go","completed":true},{"text":"Run tests","completed":false}]}}
 {"type":"turn.completed","usage":{"input_tokens":12000,"cached_input_tokens":9000,"output_tokens":800}}
 {"type":"error","message":"stream disconnected"}
