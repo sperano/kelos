@@ -1,0 +1,29 @@
+✻ Plan the change.
+
+⏺ Looking at the repository.
+
+⏺ Bash(git status --short)
+  ⎿   M main.go
+
+⏺ Bash(rg -n 'x' -g '!vendor')
+  ⎿  Error: exit code 1
+
+⏺ tracker.get_task({"id":7})
+  ⎿  {"title":"Fix the greeting"}
+
+⏺ Todos
+  ⎿  ☐ Edit main.go
+     ☐ Run tests
+
+⏺ Update(main.go)
+
+⏺ Create(greet.go)
+
+⏺ Todos
+  ⎿  ☒ Edit main.go
+     ☐ Run tests
+
+──────────
+✓ Completed · 12.0k in (9.0k cached), 800 out
+
+⏺ Error: stream disconnected

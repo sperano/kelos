@@ -1,0 +1,17 @@
+{"type":"thread.started","thread_id":"th"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"reasoning","text":"Plan the change."}}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"Looking at the repository."}}
+{"type":"item.started","item":{"id":"item_2","type":"command_execution","command":"/bin/bash -lc 'git status --short'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_2","type":"command_execution","command":"/bin/bash -lc 'git status --short'","aggregated_output":" M main.go\n","exit_code":0,"status":"completed"}}
+{"type":"item.started","item":{"id":"item_3","type":"command_execution","command":"/bin/bash -lc \"rg -n 'x' -g '\"'!vendor'\"'\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_3","type":"command_execution","command":"/bin/bash -lc \"rg -n 'x' -g '\"'!vendor'\"'\"","aggregated_output":"","exit_code":1,"status":"failed"}}
+{"type":"item.started","item":{"id":"item_4","type":"mcp_tool_call","server":"tracker","tool":"get_task","arguments":{"id":7},"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_4","type":"mcp_tool_call","server":"tracker","tool":"get_task","arguments":{"id":7},"result":{"content":[{"type":"text","text":"{\"title\":\"Fix the greeting\"}"}]},"status":"completed"}}
+{"type":"item.started","item":{"id":"item_5","type":"todo_list","items":[{"text":"Edit main.go","completed":false},{"text":"Run tests","completed":false}]}}
+{"type":"item.started","item":{"id":"item_6","type":"file_change","changes":[{"path":"/workspace/repo/main.go","kind":"update"}],"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_6","type":"file_change","changes":[{"path":"/workspace/repo/main.go","kind":"update"},{"path":"/workspace/repo/greet.go","kind":"add"}],"status":"completed"}}
+{"type":"item.started","item":{"id":"item_7","type":"collab_tool_call","tool":"wait","prompt":null,"status":"in_progress"}}
+{"type":"item.updated","item":{"id":"item_5","type":"todo_list","items":[{"text":"Edit main.go","completed":true},{"text":"Run tests","completed":false}]}}
+{"type":"turn.completed","usage":{"input_tokens":12000,"cached_input_tokens":9000,"output_tokens":800}}
+{"type":"error","message":"stream disconnected"}

@@ -42,6 +42,7 @@ const (
 
 func newLogsCommand(cfg *ClientConfig) *cobra.Command {
 	var follow bool
+	var output logOutputFlags
 
 	cmd := &cobra.Command{
 		Use:   "logs <name>",
@@ -56,6 +57,11 @@ func newLogsCommand(cfg *ClientConfig) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			out, err := output.resolve(os.Stdout)
+			if err != nil {
+				return err
+			}
+
 			cl, ns, err := cfg.NewClient()
 			if err != nil {
 				return err
@@ -113,13 +119,14 @@ func newLogsCommand(cfg *ClientConfig) *cobra.Command {
 			}
 			agentType := resolveAgentType(ctx, cl, ns, task)
 			if task.Spec.WorkerPoolRef != nil {
-				return streamWorkerPoolTaskAgentLogs(ctx, cl, cs, ns, podName, containerName, agentType, task.Name, follow)
+				return streamWorkerPoolTaskAgentLogs(ctx, cl, cs, ns, podName, containerName, agentType, task.Name, follow, out)
 			}
-			return streamAgentLogs(ctx, cl, cs, ns, task.Name, podName, containerName, agentType, follow)
+			return streamAgentLogs(ctx, cl, cs, ns, task.Name, podName, containerName, agentType, follow, out)
 		},
 	}
 
 	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "follow log output")
+	output.register(cmd)
 
 	cmd.ValidArgsFunction = completeTaskNames(cfg)
 
@@ -207,7 +214,7 @@ func streamLogs(ctx context.Context, cl client.Client, cs *kubernetes.Clientset,
 	return nil
 }
 
-func streamAgentLogs(ctx context.Context, cl client.Client, cs *kubernetes.Clientset, namespace, taskName, podName, container, agentType string, follow bool) error {
+func streamAgentLogs(ctx context.Context, cl client.Client, cs *kubernetes.Clientset, namespace, taskName, podName, container, agentType string, follow bool, out logOutput) error {
 	opts := &corev1.PodLogOptions{
 		Follow:    follow,
 		Container: container,
@@ -221,10 +228,10 @@ func streamAgentLogs(ctx context.Context, cl client.Client, cs *kubernetes.Clien
 	}
 	defer stream.Close()
 
-	return parseAgentLogs(agentType, stream)
+	return out.write(agentType, stream)
 }
 
-func streamWorkerPoolTaskAgentLogs(ctx context.Context, cl client.Client, cs *kubernetes.Clientset, namespace, podName, container, agentType, taskName string, follow bool) error {
+func streamWorkerPoolTaskAgentLogs(ctx context.Context, cl client.Client, cs *kubernetes.Clientset, namespace, podName, container, agentType, taskName string, follow bool, out logOutput) error {
 	opts := &corev1.PodLogOptions{
 		Follow:    follow,
 		Container: container,
@@ -239,7 +246,7 @@ func streamWorkerPoolTaskAgentLogs(ctx context.Context, cl client.Client, cs *ku
 	defer stream.Close()
 
 	filtered, wait := filteredTaskLogReader(stream, taskName)
-	parseErr := parseAgentLogs(agentType, filtered)
+	parseErr := out.write(agentType, filtered)
 	filterErr := wait()
 	if errors.Is(parseErr, errTaskLogSegmentNotFound) || errors.Is(filterErr, errTaskLogSegmentNotFound) {
 		return fmt.Errorf("task %q logs not found in worker pod %s", taskName, podName)
@@ -248,19 +255,6 @@ func streamWorkerPoolTaskAgentLogs(ctx context.Context, cl client.Client, cs *ku
 		return parseErr
 	}
 	return filterErr
-}
-
-func parseAgentLogs(agentType string, stream io.Reader) error {
-	switch agentType {
-	case "codex":
-		return ParseAndFormatCodexLogs(stream, os.Stdout, os.Stderr)
-	case "gemini":
-		return ParseAndFormatGeminiLogs(stream, os.Stdout, os.Stderr)
-	case "opencode":
-		return ParseAndFormatOpenCodeLogs(stream, os.Stdout, os.Stderr)
-	default:
-		return ParseAndFormatLogs(stream, os.Stdout, os.Stderr)
-	}
 }
 
 func filteredTaskLogReader(stream io.Reader, taskName string) (io.Reader, func() error) {
