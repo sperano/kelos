@@ -391,6 +391,8 @@ func taskSpawnerSource(when kelos.When) string {
 		return "cron"
 	case when.Jira != nil:
 		return "jira"
+	case when.Vikunja != nil:
+		return "vikunja"
 	case when.Slack != nil:
 		return "slack"
 	default:

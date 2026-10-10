@@ -38,6 +38,10 @@ type When struct {
 	// +optional
 	Jira *Jira `json:"jira,omitempty"`
 
+	// Vikunja discovers tasks from a Vikunja project.
+	// +optional
+	Vikunja *Vikunja `json:"vikunja,omitempty"`
+
 	// GitHubWebhook triggers task spawning on GitHub webhook events.
 	// +optional
 	GitHubWebhook *GitHubWebhook `json:"githubWebhook,omitempty"`
@@ -374,6 +378,47 @@ type Jira struct {
 	// and an optional "JIRA_USER" key. When "JIRA_USER" is present, Basic
 	// auth is used (Jira Cloud). When absent, Bearer token auth is used
 	// (Jira Data Center/Server PAT).
+	// +kubebuilder:validation:Required
+	SecretRef SecretReference `json:"secretRef"`
+
+	// PollInterval is how often this source is polled (e.g., "30s", "5m").
+	// When empty, a default of 5m is used.
+	// +optional
+	PollInterval string `json:"pollInterval,omitempty"`
+}
+
+// VikunjaBaseURLPattern is the pattern applied to Vikunja.BaseURL. It is
+// exported so conversion validation of a restored v1alpha1-round-trip
+// annotation (see the conversion package) cannot drift apart from the
+// kubebuilder marker below.
+const VikunjaBaseURLPattern = `^https?://.+`
+
+// Vikunja discovers tasks from a Vikunja project (https://vikunja.io).
+// Authentication is provided via a Secret referenced in the TaskSpawner's
+// namespace. The secret must contain a "VIKUNJA_TOKEN" key (a Vikunja API
+// token), sent as a Bearer token.
+type Vikunja struct {
+	// BaseURL is the Vikunja instance URL, without the /api/v1 suffix
+	// (e.g., "https://vikunja.example.com").
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern="^https?://.+"
+	BaseURL string `json:"baseUrl"`
+
+	// ProjectID is the numeric Vikunja project ID.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=1
+	ProjectID int64 `json:"projectId"`
+
+	// Filter is an optional Vikunja filter query (e.g., "done = false && labels in 5"),
+	// scoped to the project — do not include a "project = ..." clause, the
+	// query already runs against ProjectID alone. When empty, only open tasks
+	// are discovered ("done = false"). When set, it is used as-is instead of
+	// the default.
+	// +optional
+	Filter string `json:"filter,omitempty"`
+
+	// SecretRef references a Secret containing a "VIKUNJA_TOKEN" key (a
+	// Vikunja API token, sent as a Bearer token).
 	// +kubebuilder:validation:Required
 	SecretRef SecretReference `json:"secretRef"`
 
@@ -1091,7 +1136,7 @@ type TaskTemplate struct {
 	// Branch is the git branch spawned Tasks should work on.
 	// Supports Go text/template variables from the work item, e.g. "kelos-task-{{.Number}}".
 	// Available variables (all sources): {{.ID}}, {{.Title}}, {{.Kind}}
-	// GitHub issue/Jira sources: {{.Number}}, {{.Body}}, {{.URL}}, {{.Labels}}, {{.Comments}}
+	// GitHub issue/Jira/Vikunja sources: {{.Number}}, {{.Body}}, {{.URL}}, {{.Labels}}, {{.Comments}}
 	// GitHub pull request sources additionally expose: {{.Branch}}, {{.ReviewState}}, {{.ReviewComments}}
 	// GitHub webhook sources: {{.Event}}, {{.Action}}, {{.Sender}}, {{.Ref}}, {{.Repository}}, {{.Payload}} (full payload access); issue and pull request events also expose {{.Number}}, {{.Title}}, {{.Body}}, {{.URL}} (plus {{.Branch}} for pull requests)
 	// Linear webhook sources: {{.Type}}, {{.Action}}, {{.State}}, {{.Labels}}, {{.IssueID}}, {{.Payload}}
@@ -1102,7 +1147,7 @@ type TaskTemplate struct {
 
 	// PromptTemplate is a Go text/template for rendering the task prompt.
 	// Available variables (all sources): {{.ID}}, {{.Title}}, {{.Kind}}
-	// GitHub issue/Jira sources: {{.Number}}, {{.Body}}, {{.URL}}, {{.Labels}}, {{.Comments}}
+	// GitHub issue/Jira/Vikunja sources: {{.Number}}, {{.Body}}, {{.URL}}, {{.Labels}}, {{.Comments}}
 	// GitHub pull request sources additionally expose: {{.Branch}}, {{.ReviewState}}, {{.ReviewComments}}
 	// GitHub webhook sources: {{.Event}}, {{.Action}}, {{.Sender}}, {{.Ref}}, {{.Repository}}, {{.Payload}} (full payload access); issue and pull request events also expose {{.Number}}, {{.Title}}, {{.Body}}, {{.URL}} (plus {{.Branch}} for pull requests)
 	// Linear webhook sources: {{.Type}}, {{.Action}}, {{.State}}, {{.Labels}}, {{.IssueID}}, {{.Payload}}
@@ -1132,7 +1177,7 @@ type TaskTemplate struct {
 	// that differ only past that point collapse to the same value and would
 	// reuse a single Task for distinct work items.
 	// Available variables (all sources): {{.ID}}, {{.Title}}, {{.Kind}}
-	// GitHub issue/Jira sources: {{.Number}}, {{.Body}}, {{.URL}}, {{.Labels}}, {{.Comments}}
+	// GitHub issue/Jira/Vikunja sources: {{.Number}}, {{.Body}}, {{.URL}}, {{.Labels}}, {{.Comments}}
 	// GitHub pull request sources additionally expose: {{.Branch}}, {{.ReviewState}}, {{.ReviewComments}}
 	// GitHub webhook sources: {{.Event}}, {{.Action}}, {{.Sender}}, {{.Ref}}, {{.Repository}}, {{.Payload}} (full payload access); issue and pull request events also expose {{.Number}}, {{.Title}}, {{.Body}}, {{.URL}} (plus {{.Branch}} for pull requests)
 	// Linear webhook sources: {{.Type}}, {{.Action}}, {{.State}}, {{.Labels}}, {{.IssueID}}, {{.Payload}}
@@ -1248,7 +1293,7 @@ type TaskSpawnerStatus struct {
 	Phase TaskSpawnerPhase `json:"phase,omitempty"`
 
 	// DeploymentName is the name of the Deployment running the spawner.
-	// Set for polling-based sources (GitHub Issues, Jira).
+	// Set for polling-based sources (GitHub Issues, Jira, Vikunja).
 	// +optional
 	DeploymentName string `json:"deploymentName,omitempty"`
 

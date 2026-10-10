@@ -31,6 +31,9 @@ type spawnerRuntimeConfig struct {
 	JiraBaseURL      string
 	JiraProject      string
 	JiraJQL          string
+	VikunjaBaseURL   string
+	VikunjaProjectID int64
+	VikunjaFilter    string
 	HTTPClient       *http.Client
 }
 
@@ -70,7 +73,7 @@ func (r *spawnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func runOnce(ctx context.Context, cl client.Client, key types.NamespacedName, cfg spawnerRuntimeConfig) (time.Duration, error) {
-	if err := runCycleWithProxy(ctx, cl, key, cfg.GitHubOwner, cfg.GitHubRepo, cfg.GHProxyURL, cfg.GitHubAPIBaseURL, cfg.TokenResolver, cfg.JiraBaseURL, cfg.JiraProject, cfg.JiraJQL, cfg.HTTPClient); err != nil {
+	if err := runCycleWithProxy(ctx, cl, key, cfg.GitHubOwner, cfg.GitHubRepo, cfg.GHProxyURL, cfg.GitHubAPIBaseURL, cfg.TokenResolver, cfg.JiraBaseURL, cfg.JiraProject, cfg.JiraJQL, cfg.VikunjaBaseURL, cfg.VikunjaProjectID, cfg.VikunjaFilter, cfg.HTTPClient); err != nil {
 		return 0, err
 	}
 
@@ -132,6 +135,8 @@ func resolvedPollInterval(ts *kelos.TaskSpawner) time.Duration {
 		sourceInterval = ts.Spec.When.GitHubPullRequests.PollInterval
 	case ts.Spec.When.Jira != nil:
 		sourceInterval = ts.Spec.When.Jira.PollInterval
+	case ts.Spec.When.Vikunja != nil:
+		sourceInterval = ts.Spec.When.Vikunja.PollInterval
 	}
 	if sourceInterval != "" {
 		return parsePollInterval(sourceInterval)

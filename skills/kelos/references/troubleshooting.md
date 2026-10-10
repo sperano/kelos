@@ -40,7 +40,8 @@ failure state.
 - Check whether `maxTotalTasks` is reached.
 - Check whether `spec.suspend: true` is set.
 - For source polling, check the source-specific `pollInterval` under
-  `spec.when.githubIssues`, `spec.when.githubPullRequests`, or `spec.when.jira`.
+  `spec.when.githubIssues`, `spec.when.githubPullRequests`, `spec.when.jira`, or
+  `spec.when.vikunja`.
 - For comment-controlled sources, check whether the latest authorized command
   includes or excludes the item.
 

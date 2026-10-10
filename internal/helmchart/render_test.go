@@ -379,13 +379,22 @@ func TestRender_TaskSpawnerTemplatePlaceholdersRemainLiteral(t *testing.T) {
 	// NameTemplate godoc that exists only in the latest version (1).
 	for _, expected := range []string{
 		"Available variables (all sources): {{.ID}}, {{.Title}}, {{.Kind}}",
-		"GitHub issue/Jira sources: {{.Number}}, {{.Body}}, {{.URL}}, {{.Labels}}, {{.Comments}}",
 		"GitHub pull request sources additionally expose: {{.Branch}}, {{.ReviewState}}, {{.ReviewComments}}",
 		"Cron sources: {{.Time}}, {{.Schedule}}",
 	} {
 		if count := strings.Count(output, expected); count != 5 {
 			t.Errorf("expected %q to appear five times in TaskSpawner CRD descriptions, got %d", expected, count)
 		}
+	}
+	// The v1alpha1-only "GitHub issue/Jira sources" wording (2 occurrences:
+	// Branch and PromptTemplate) and the v1alpha2 "GitHub issue/Jira/Vikunja
+	// sources" wording (3 occurrences: Branch, PromptTemplate, NameTemplate)
+	// diverge because Vikunja is a v1alpha2-only source.
+	if count := strings.Count(output, "GitHub issue/Jira sources: {{.Number}}, {{.Body}}, {{.URL}}, {{.Labels}}, {{.Comments}}"); count != 2 {
+		t.Errorf("expected v1alpha1 GitHub issue/Jira wording to appear twice in TaskSpawner CRD descriptions, got %d", count)
+	}
+	if count := strings.Count(output, "GitHub issue/Jira/Vikunja sources: {{.Number}}, {{.Body}}, {{.URL}}, {{.Labels}}, {{.Comments}}"); count != 3 {
+		t.Errorf("expected v1alpha2 GitHub issue/Jira/Vikunja wording to appear three times in TaskSpawner CRD descriptions, got %d", count)
 	}
 }
 

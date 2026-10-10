@@ -64,6 +64,15 @@ const preservedSlackExcludeFiltersAnnotation = "kelos.dev/v1alpha2-slack-exclude
 
 var slackFilterChannelIDPattern = regexp.MustCompile(v1alpha2.SlackFilterChannelIDPattern)
 
+// preservedVikunjaAnnotation carries spec.when.vikunja (a v1alpha2-only
+// source: v1alpha1 has no corresponding field at all) across a v1alpha1
+// round-trip so a client that reads and writes the object through v1alpha1
+// does not silently drop the source. v1alpha1 does not gain the capability —
+// the value only survives in this annotation.
+const preservedVikunjaAnnotation = "kelos.dev/v1alpha2-vikunja"
+
+var vikunjaBaseURLPattern = regexp.MustCompile(v1alpha2.VikunjaBaseURLPattern)
+
 type preservedGitHubCommentsReporting struct {
 	GitHubIssues       *preservedGitHubCommentsSource `json:"githubIssues,omitempty"`
 	GitHubPullRequests *preservedGitHubCommentsSource `json:"githubPullRequests,omitempty"`
@@ -102,6 +111,8 @@ func taskSpawnerToHub(_ context.Context, src *v1alpha1.TaskSpawner, dst *v1alpha
 	deleteAnnotation(dst.Annotations, preservedGitHubWebhookExcludeFiltersAnnotation)
 	restorePreservedSlackExcludeFilters(src.Annotations, dst.Spec.When.Slack)
 	deleteAnnotation(dst.Annotations, preservedSlackExcludeFiltersAnnotation)
+	restorePreservedVikunja(src.Annotations, &dst.Spec.When)
+	deleteAnnotation(dst.Annotations, preservedVikunjaAnnotation)
 	return nil
 }
 
@@ -131,6 +142,9 @@ func taskSpawnerFromHub(_ context.Context, src *v1alpha2.TaskSpawner, dst *v1alp
 		return err
 	}
 	if err := setPreservedSlackExcludeFilters(dst, src.Spec.When.Slack); err != nil {
+		return err
+	}
+	if err := setPreservedVikunja(dst, src.Spec.When.Vikunja); err != nil {
 		return err
 	}
 	return convertViaJSON(&src.Status, &dst.Status)
@@ -480,6 +494,65 @@ func validSlackFilterChannels(channels []string) bool {
 		seen[id] = struct{}{}
 	}
 	return true
+}
+
+// setPreservedVikunja records spec.when.vikunja in an annotation on the
+// v1alpha1 object, since v1alpha1 has no field to carry it. The annotation is
+// cleared when there is no Vikunja source to preserve.
+func setPreservedVikunja(dst *v1alpha1.TaskSpawner, vikunja *v1alpha2.Vikunja) error {
+	if vikunja == nil {
+		deleteAnnotation(dst.Annotations, preservedVikunjaAnnotation)
+		return nil
+	}
+	data, err := json.Marshal(vikunja)
+	if err != nil {
+		return err
+	}
+	if dst.Annotations == nil {
+		dst.Annotations = map[string]string{}
+	}
+	dst.Annotations[preservedVikunjaAnnotation] = string(data)
+	return nil
+}
+
+// restorePreservedVikunja restores spec.when.vikunja dropped by a v1alpha1
+// round-trip.
+func restorePreservedVikunja(annotations map[string]string, when *v1alpha2.When) {
+	if when.Vikunja != nil {
+		return
+	}
+	raw, ok := annotations[preservedVikunjaAnnotation]
+	if !ok || raw == "" {
+		return
+	}
+	var vikunja v1alpha2.Vikunja
+	if err := json.Unmarshal([]byte(raw), &vikunja); err != nil {
+		// The annotation is best-effort preservation data and can be set by
+		// users; malformed data must not block API version conversion.
+		return
+	}
+	if !validVikunja(&vikunja) {
+		// Restoring an out-of-schema Vikunja source would produce a v1alpha2
+		// object the API server would have rejected. Ignore the annotation
+		// wholesale rather than applying part of it.
+		return
+	}
+	when.Vikunja = &vikunja
+}
+
+// validVikunja reports whether a restored annotation value satisfies every
+// constraint declared on v1alpha2 Vikunja: baseUrl is non-empty and matches
+// the kubebuilder pattern, projectId is positive, and secretRef.name is set.
+// The API server does not re-validate conversion output, so annotation data
+// that violates these constraints must not be restored.
+func validVikunja(vikunja *v1alpha2.Vikunja) bool {
+	if !vikunjaBaseURLPattern.MatchString(vikunja.BaseURL) {
+		return false
+	}
+	if vikunja.ProjectID < 1 {
+		return false
+	}
+	return vikunja.SecretRef.Name != ""
 }
 
 // setPreservedContextGitHubAppAuth records the githubAppAuth block of each

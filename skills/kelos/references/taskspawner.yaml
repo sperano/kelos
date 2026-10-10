@@ -156,6 +156,34 @@ spec:
       {{.Body}}
   maxConcurrency: 2
 ---
+# TaskSpawner with Vikunja source (v1alpha2 only)
+apiVersion: kelos.dev/v1alpha2
+kind: TaskSpawner
+metadata:
+  name: vikunja-worker
+spec:
+  when:
+    vikunja:
+      baseUrl: https://vikunja.example.com
+      projectId: 49
+      filter: "done = false && labels in 5"
+      secretRef:
+        name: vikunja-credentials
+      pollInterval: 10m
+  taskTemplate:
+    type: claude-code
+    workspaceRef:
+      name: my-workspace
+    credentials:
+      type: oauth
+      secretRef:
+        name: claude-oauth-token
+    promptTemplate: |
+      Fix Vikunja task {{.ID}}: {{.Title}}
+
+      {{.Body}}
+  maxConcurrency: 2
+---
 # TaskSpawner distributing generated Tasks across multiple agent accounts
 apiVersion: kelos.dev/v1alpha2
 kind: TaskSpawner

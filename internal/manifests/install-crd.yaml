@@ -53137,7 +53137,7 @@ spec:
                       Branch is the git branch spawned Tasks should work on.
                       Supports Go text/template variables from the work item, e.g. "kelos-task-{{.Number}}".
                       Available variables (all sources): {{.ID}}, {{.Title}}, {{.Kind}}
-                      GitHub issue/Jira sources: {{.Number}}, {{.Body}}, {{.URL}}, {{.Labels}}, {{.Comments}}
+                      GitHub issue/Jira/Vikunja sources: {{.Number}}, {{.Body}}, {{.URL}}, {{.Labels}}, {{.Comments}}
                       GitHub pull request sources additionally expose: {{.Branch}}, {{.ReviewState}}, {{.ReviewComments}}
                       GitHub webhook sources: {{.Event}}, {{.Action}}, {{.Sender}}, {{.Ref}}, {{.Repository}}, {{.Payload}} (full payload access); issue and pull request events also expose {{.Number}}, {{.Title}}, {{.Body}}, {{.URL}} (plus {{.Branch}} for pull requests)
                       Linear webhook sources: {{.Type}}, {{.Action}}, {{.State}}, {{.Labels}}, {{.IssueID}}, {{.Payload}}
@@ -53438,7 +53438,7 @@ spec:
                       that differ only past that point collapse to the same value and would
                       reuse a single Task for distinct work items.
                       Available variables (all sources): {{.ID}}, {{.Title}}, {{.Kind}}
-                      GitHub issue/Jira sources: {{.Number}}, {{.Body}}, {{.URL}}, {{.Labels}}, {{.Comments}}
+                      GitHub issue/Jira/Vikunja sources: {{.Number}}, {{.Body}}, {{.URL}}, {{.Labels}}, {{.Comments}}
                       GitHub pull request sources additionally expose: {{.Branch}}, {{.ReviewState}}, {{.ReviewComments}}
                       GitHub webhook sources: {{.Event}}, {{.Action}}, {{.Sender}}, {{.Ref}}, {{.Repository}}, {{.Payload}} (full payload access); issue and pull request events also expose {{.Number}}, {{.Title}}, {{.Body}}, {{.URL}} (plus {{.Branch}} for pull requests)
                       Linear webhook sources: {{.Type}}, {{.Action}}, {{.State}}, {{.Labels}}, {{.IssueID}}, {{.Payload}}
@@ -60370,7 +60370,7 @@ spec:
                     description: |-
                       PromptTemplate is a Go text/template for rendering the task prompt.
                       Available variables (all sources): {{.ID}}, {{.Title}}, {{.Kind}}
-                      GitHub issue/Jira sources: {{.Number}}, {{.Body}}, {{.URL}}, {{.Labels}}, {{.Comments}}
+                      GitHub issue/Jira/Vikunja sources: {{.Number}}, {{.Body}}, {{.URL}}, {{.Labels}}, {{.Comments}}
                       GitHub pull request sources additionally expose: {{.Branch}}, {{.ReviewState}}, {{.ReviewComments}}
                       GitHub webhook sources: {{.Event}}, {{.Action}}, {{.Sender}}, {{.Ref}}, {{.Repository}}, {{.Payload}} (full payload access); issue and pull request events also expose {{.Number}}, {{.Title}}, {{.Body}}, {{.URL}} (plus {{.Branch}} for pull requests)
                       Linear webhook sources: {{.Type}}, {{.Action}}, {{.State}}, {{.Labels}}, {{.IssueID}}, {{.Payload}}
@@ -68463,6 +68463,50 @@ spec:
                         maxItems: 8
                         type: array
                     type: object
+                  vikunja:
+                    description: Vikunja discovers tasks from a Vikunja project.
+                    properties:
+                      baseUrl:
+                        description: |-
+                          BaseURL is the Vikunja instance URL, without the /api/v1 suffix
+                          (e.g., "https://vikunja.example.com").
+                        pattern: ^https?://.+
+                        type: string
+                      filter:
+                        description: |-
+                          Filter is an optional Vikunja filter query (e.g., "done = false && labels in 5"),
+                          scoped to the project — do not include a "project = ..." clause, the
+                          query already runs against ProjectID alone. When empty, only open tasks
+                          are discovered ("done = false"). When set, it is used as-is instead of
+                          the default.
+                        type: string
+                      pollInterval:
+                        description: |-
+                          PollInterval is how often this source is polled (e.g., "30s", "5m").
+                          When empty, a default of 5m is used.
+                        type: string
+                      projectId:
+                        description: ProjectID is the numeric Vikunja project ID.
+                        format: int64
+                        minimum: 1
+                        type: integer
+                      secretRef:
+                        description: |-
+                          SecretRef references a Secret containing a "VIKUNJA_TOKEN" key (a
+                          Vikunja API token, sent as a Bearer token).
+                        properties:
+                          name:
+                            description: Name is the name of the secret.
+                            minLength: 1
+                            type: string
+                        required:
+                        - name
+                        type: object
+                    required:
+                    - baseUrl
+                    - projectId
+                    - secretRef
+                    type: object
                   webhook:
                     description: |-
                       GenericWebhook triggers task spawning from arbitrary HTTP POST payloads.
@@ -68677,7 +68721,7 @@ spec:
               deploymentName:
                 description: |-
                   DeploymentName is the name of the Deployment running the spawner.
-                  Set for polling-based sources (GitHub Issues, Jira).
+                  Set for polling-based sources (GitHub Issues, Jira, Vikunja).
                 type: string
               lastDiscoveryTime:
                 description: LastDiscoveryTime is the last time the source was polled.

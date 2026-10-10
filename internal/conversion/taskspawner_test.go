@@ -351,6 +351,133 @@ func TestTaskSpawnerToHub_MalformedSlackExcludeFiltersAnnotationIgnored(t *testi
 	}
 }
 
+// TestTaskSpawnerConvert_VikunjaRoundTrip verifies that the v1alpha2-only
+// vikunja source survives a v1alpha1 round-trip via its preservation
+// annotation, even though v1alpha1 has no field for it at all.
+func TestTaskSpawnerConvert_VikunjaRoundTrip(t *testing.T) {
+	src := &v1alpha2.TaskSpawner{
+		Spec: v1alpha2.TaskSpawnerSpec{
+			When: v1alpha2.When{
+				Vikunja: &v1alpha2.Vikunja{
+					BaseURL:      "https://vikunja.example.com",
+					ProjectID:    49,
+					Filter:       "done = false && labels in 5",
+					SecretRef:    v1alpha2.SecretReference{Name: "vikunja-secret"},
+					PollInterval: "2m",
+				},
+			},
+		},
+	}
+
+	down := &v1alpha1.TaskSpawner{}
+	if err := taskSpawnerFromHub(context.Background(), src, down); err != nil {
+		t.Fatalf("taskSpawnerFromHub() error = %v", err)
+	}
+	// v1alpha1 cannot represent vikunja at all — the source survives only via
+	// the preservation annotation.
+	raw, ok := down.Annotations[preservedVikunjaAnnotation]
+	if !ok {
+		t.Fatal("expected preservation annotation after down-conversion")
+	}
+	var preserved v1alpha2.Vikunja
+	if err := json.Unmarshal([]byte(raw), &preserved); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if preserved != *src.Spec.When.Vikunja {
+		t.Errorf("preserved vikunja = %#v, want %#v", preserved, *src.Spec.When.Vikunja)
+	}
+
+	up := &v1alpha2.TaskSpawner{}
+	if err := taskSpawnerToHub(context.Background(), down, up); err != nil {
+		t.Fatalf("taskSpawnerToHub() error = %v", err)
+	}
+	if up.Spec.When.Vikunja == nil {
+		t.Fatal("expected vikunja config after up-conversion")
+	}
+	if *up.Spec.When.Vikunja != *src.Spec.When.Vikunja {
+		t.Errorf("restored vikunja = %#v, want %#v", *up.Spec.When.Vikunja, *src.Spec.When.Vikunja)
+	}
+	if _, ok := up.Annotations[preservedVikunjaAnnotation]; ok {
+		t.Error("preservation annotation not cleaned up after restore")
+	}
+}
+
+func TestTaskSpawnerFromHub_NoVikunjaOmitsAnnotation(t *testing.T) {
+	src := &v1alpha2.TaskSpawner{
+		Spec: v1alpha2.TaskSpawnerSpec{
+			When: v1alpha2.When{
+				Jira: &v1alpha2.Jira{Project: "PROJ"},
+			},
+		},
+	}
+
+	down := &v1alpha1.TaskSpawner{}
+	if err := taskSpawnerFromHub(context.Background(), src, down); err != nil {
+		t.Fatalf("taskSpawnerFromHub() error = %v", err)
+	}
+	if _, ok := down.Annotations[preservedVikunjaAnnotation]; ok {
+		t.Error("expected no preservation annotation when vikunja is not configured")
+	}
+}
+
+func TestTaskSpawnerToHub_MalformedVikunjaAnnotationIgnored(t *testing.T) {
+	spoke := &v1alpha1.TaskSpawner{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "chat",
+			Namespace: "default",
+			Annotations: map[string]string{
+				preservedVikunjaAnnotation: "[not valid json",
+			},
+		},
+		Spec: v1alpha1.TaskSpawnerSpec{
+			When: v1alpha1.When{Jira: &v1alpha1.Jira{Project: "PROJ"}},
+		},
+	}
+
+	hub := &v1alpha2.TaskSpawner{}
+	if err := taskSpawnerToHub(context.Background(), spoke, hub); err != nil {
+		t.Fatalf("taskSpawnerToHub() error = %v", err)
+	}
+	if hub.Spec.When.Vikunja != nil {
+		t.Errorf("vikunja = %#v, want nil from a malformed annotation", hub.Spec.When.Vikunja)
+	}
+	if _, ok := hub.Annotations[preservedVikunjaAnnotation]; ok {
+		t.Error("malformed preservation annotation should still be stripped from the hub object")
+	}
+}
+
+func TestTaskSpawnerToHub_InvalidVikunjaAnnotationIgnored(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+	}{
+		{"bad base URL", `{"baseUrl":"ftp://vikunja.example.com","projectId":49,"secretRef":{"name":"s"}}`},
+		{"zero project ID", `{"baseUrl":"https://vikunja.example.com","projectId":0,"secretRef":{"name":"s"}}`},
+		{"empty secret name", `{"baseUrl":"https://vikunja.example.com","projectId":49,"secretRef":{"name":""}}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spoke := &v1alpha1.TaskSpawner{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{preservedVikunjaAnnotation: tt.raw},
+				},
+			}
+
+			hub := &v1alpha2.TaskSpawner{}
+			if err := taskSpawnerToHub(context.Background(), spoke, hub); err != nil {
+				t.Fatalf("taskSpawnerToHub() error = %v", err)
+			}
+			if hub.Spec.When.Vikunja != nil {
+				t.Errorf("vikunja = %#v, want nil from an invalid annotation", hub.Spec.When.Vikunja)
+			}
+			if _, ok := hub.Annotations[preservedVikunjaAnnotation]; ok {
+				t.Error("invalid preservation annotation should still be stripped from the hub object")
+			}
+		})
+	}
+}
+
 // marshalChannelRule builds one exclusion rule carrying n unique, well-formed
 // Slack channel IDs, for exercising the per-rule maxItems boundary.
 func marshalChannelRule(t *testing.T, n int) string {

@@ -54,6 +54,9 @@ func main() {
 	var jiraBaseURL string
 	var jiraProject string
 	var jiraJQL string
+	var vikunjaBaseURL string
+	var vikunjaProjectID int64
+	var vikunjaFilter string
 	var oneShot bool
 
 	flag.StringVar(&name, "taskspawner-name", "", "Name of the TaskSpawner to manage")
@@ -69,6 +72,9 @@ func main() {
 	flag.StringVar(&jiraBaseURL, "jira-base-url", "", "Jira instance base URL (e.g. https://mycompany.atlassian.net)")
 	flag.StringVar(&jiraProject, "jira-project", "", "Jira project key")
 	flag.StringVar(&jiraJQL, "jira-jql", "", "Optional JQL filter for Jira issues")
+	flag.StringVar(&vikunjaBaseURL, "vikunja-base-url", "", "Vikunja instance base URL (e.g. https://vikunja.example.com)")
+	flag.Int64Var(&vikunjaProjectID, "vikunja-project-id", 0, "Vikunja numeric project ID")
+	flag.StringVar(&vikunjaFilter, "vikunja-filter", "", "Optional Vikunja filter query (defaults to \"done = false\")")
 	flag.BoolVar(&oneShot, "one-shot", false, "Run a single discovery cycle and exit (used by CronJob)")
 
 	opts, applyVerbosity := logging.SetupZapOptions(flag.CommandLine)
@@ -137,6 +143,9 @@ func main() {
 		JiraBaseURL:      jiraBaseURL,
 		JiraProject:      jiraProject,
 		JiraJQL:          jiraJQL,
+		VikunjaBaseURL:   vikunjaBaseURL,
+		VikunjaProjectID: vikunjaProjectID,
+		VikunjaFilter:    vikunjaFilter,
 		HTTPClient:       httpClient,
 	}
 
@@ -204,13 +213,13 @@ func taskNameForWorkItem(taskSpawnerName, workItemID string) string {
 	return strings.ToLower(taskSpawnerName + "-" + workItemID)
 }
 
-func runCycle(ctx context.Context, cl client.Client, key types.NamespacedName, githubOwner, githubRepo, githubAPIBaseURL string, tokenResolver func(context.Context) (string, error), jiraBaseURL, jiraProject, jiraJQL string, httpClient *http.Client) error {
-	return runCycleWithProxy(ctx, cl, key, githubOwner, githubRepo, "", githubAPIBaseURL, tokenResolver, jiraBaseURL, jiraProject, jiraJQL, httpClient)
+func runCycle(ctx context.Context, cl client.Client, key types.NamespacedName, githubOwner, githubRepo, githubAPIBaseURL string, tokenResolver func(context.Context) (string, error), jiraBaseURL, jiraProject, jiraJQL string, vikunjaBaseURL string, vikunjaProjectID int64, vikunjaFilter string, httpClient *http.Client) error {
+	return runCycleWithProxy(ctx, cl, key, githubOwner, githubRepo, "", githubAPIBaseURL, tokenResolver, jiraBaseURL, jiraProject, jiraJQL, vikunjaBaseURL, vikunjaProjectID, vikunjaFilter, httpClient)
 }
 
-func runCycleWithProxy(ctx context.Context, cl client.Client, key types.NamespacedName, githubOwner, githubRepo, ghProxyURL, githubAPIBaseURL string, tokenResolver func(context.Context) (string, error), jiraBaseURL, jiraProject, jiraJQL string, httpClient *http.Client) error {
+func runCycleWithProxy(ctx context.Context, cl client.Client, key types.NamespacedName, githubOwner, githubRepo, ghProxyURL, githubAPIBaseURL string, tokenResolver func(context.Context) (string, error), jiraBaseURL, jiraProject, jiraJQL string, vikunjaBaseURL string, vikunjaProjectID int64, vikunjaFilter string, httpClient *http.Client) error {
 	start := time.Now()
-	err := runCycleCore(ctx, cl, key, githubOwner, githubRepo, ghProxyURL, githubAPIBaseURL, tokenResolver, jiraBaseURL, jiraProject, jiraJQL, httpClient)
+	err := runCycleCore(ctx, cl, key, githubOwner, githubRepo, ghProxyURL, githubAPIBaseURL, tokenResolver, jiraBaseURL, jiraProject, jiraJQL, vikunjaBaseURL, vikunjaProjectID, vikunjaFilter, httpClient)
 	discoveryDurationSeconds.Observe(time.Since(start).Seconds())
 	if err != nil {
 		discoveryErrorsTotal.Inc()
@@ -218,13 +227,13 @@ func runCycleWithProxy(ctx context.Context, cl client.Client, key types.Namespac
 	return err
 }
 
-func runCycleCore(ctx context.Context, cl client.Client, key types.NamespacedName, githubOwner, githubRepo, ghProxyURL, githubAPIBaseURL string, tokenResolver func(context.Context) (string, error), jiraBaseURL, jiraProject, jiraJQL string, httpClient *http.Client) error {
+func runCycleCore(ctx context.Context, cl client.Client, key types.NamespacedName, githubOwner, githubRepo, ghProxyURL, githubAPIBaseURL string, tokenResolver func(context.Context) (string, error), jiraBaseURL, jiraProject, jiraJQL string, vikunjaBaseURL string, vikunjaProjectID int64, vikunjaFilter string, httpClient *http.Client) error {
 	var ts kelos.TaskSpawner
 	if err := cl.Get(ctx, key, &ts); err != nil {
 		return fmt.Errorf("fetching TaskSpawner: %w", err)
 	}
 
-	src, err := buildSourceWithProxy(ctx, &ts, githubOwner, githubRepo, ghProxyURL, githubAPIBaseURL, tokenResolver, jiraBaseURL, jiraProject, jiraJQL, httpClient)
+	src, err := buildSourceWithProxy(ctx, &ts, githubOwner, githubRepo, ghProxyURL, githubAPIBaseURL, tokenResolver, jiraBaseURL, jiraProject, jiraJQL, vikunjaBaseURL, vikunjaProjectID, vikunjaFilter, httpClient)
 	if err != nil {
 		return fmt.Errorf("building source: %w", err)
 	}
@@ -732,11 +741,11 @@ func resolveGitHubCommentPolicy(policy *kelos.GitHubCommentPolicy) resolvedGitHu
 	}
 }
 
-func buildSource(ctx context.Context, ts *kelos.TaskSpawner, owner, repo, apiBaseURL string, tokenResolver func(context.Context) (string, error), jiraBaseURL, jiraProject, jiraJQL string, httpClient *http.Client) (source.Source, error) {
-	return buildSourceWithProxy(ctx, ts, owner, repo, "", apiBaseURL, tokenResolver, jiraBaseURL, jiraProject, jiraJQL, httpClient)
+func buildSource(ctx context.Context, ts *kelos.TaskSpawner, owner, repo, apiBaseURL string, tokenResolver func(context.Context) (string, error), jiraBaseURL, jiraProject, jiraJQL string, vikunjaBaseURL string, vikunjaProjectID int64, vikunjaFilter string, httpClient *http.Client) (source.Source, error) {
+	return buildSourceWithProxy(ctx, ts, owner, repo, "", apiBaseURL, tokenResolver, jiraBaseURL, jiraProject, jiraJQL, vikunjaBaseURL, vikunjaProjectID, vikunjaFilter, httpClient)
 }
 
-func buildSourceWithProxy(ctx context.Context, ts *kelos.TaskSpawner, owner, repo, ghProxyURL, apiBaseURL string, tokenResolver func(context.Context) (string, error), jiraBaseURL, jiraProject, jiraJQL string, httpClient *http.Client) (source.Source, error) {
+func buildSourceWithProxy(ctx context.Context, ts *kelos.TaskSpawner, owner, repo, ghProxyURL, apiBaseURL string, tokenResolver func(context.Context) (string, error), jiraBaseURL, jiraProject, jiraJQL string, vikunjaBaseURL string, vikunjaProjectID int64, vikunjaFilter string, httpClient *http.Client) (source.Source, error) {
 	if ts.Spec.When.GitHubIssues != nil {
 		gh := ts.Spec.When.GitHubIssues
 		commentPolicy := resolveGitHubCommentPolicy(gh.CommentPolicy)
@@ -825,6 +834,21 @@ func buildSourceWithProxy(ctx context.Context, ts *kelos.TaskSpawner, owner, rep
 			JQL:     jiraJQL,
 			User:    user,
 			Token:   token,
+		}, nil
+	}
+
+	if ts.Spec.When.Vikunja != nil {
+		token := os.Getenv("VIKUNJA_TOKEN")
+		if token == "" {
+			return nil, fmt.Errorf("VIKUNJA_TOKEN environment variable is required for TaskSpawner %s/%s", ts.Namespace, ts.Name)
+		}
+
+		return &source.VikunjaSource{
+			BaseURL:   vikunjaBaseURL,
+			ProjectID: vikunjaProjectID,
+			Filter:    vikunjaFilter,
+			Token:     token,
+			Client:    httpClient,
 		}, nil
 	}
 

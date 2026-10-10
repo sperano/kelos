@@ -250,6 +250,58 @@ kubectl create secret generic jira-credentials \
   --from-literal=JIRA_TOKEN=<your-pat>
 ```
 
+### Vikunja
+
+React to tasks in a [Vikunja](https://vikunja.io) project. The spawner polls the Vikunja API.
+
+```yaml
+apiVersion: kelos.dev/v1alpha2
+kind: TaskSpawner
+metadata:
+  name: vikunja-worker
+spec:
+  when:
+    vikunja:
+      baseUrl: https://vikunja.example.com
+      projectId: 49
+      filter: "done = false && labels in 5"
+      secretRef:
+        name: vikunja-credentials
+      pollInterval: 10m
+  taskTemplate:
+    type: claude-code
+    workspaceRef:
+      name: my-workspace
+    credentials:
+      type: oauth
+      secretRef:
+        name: claude-oauth-token
+    promptTemplate: |
+      Fix the following Vikunja task:
+
+      {{.Title}}
+
+      {{.Body}}
+    branch: "vikunja-{{.ID}}"
+  maxConcurrency: 2
+```
+
+`filter` is scoped to the project — do not include a `project = ...` clause. When
+omitted, only open tasks are discovered (`"done = false"`); when set, it is used
+as-is instead of that default.
+
+The Vikunja secret requires a `VIKUNJA_TOKEN` key (a Vikunja API token, sent as a Bearer token):
+
+```bash
+kubectl create secret generic vikunja-credentials \
+  --from-literal=VIKUNJA_TOKEN=<your-api-token>
+```
+
+`vikunja` is a `v1alpha2`-only source: a client that reads and writes the
+TaskSpawner through `v1alpha1` does not see this field, though the source
+survives a round-trip through that older API version via an internal
+annotation.
+
 ### Linear Webhooks
 
 React to Linear webhook events in real time — issues, comments, and more. The webhook server receives events from Linear and creates Tasks for matching items.
@@ -429,34 +481,34 @@ spec:
 
 All `promptTemplate` and `branch` fields support Go `text/template` syntax. Available variables depend on the source:
 
-| Variable | GitHub Issues | GitHub PRs | GitHub Webhook | Jira | Linear Webhook | Generic Webhook | Cron |
-|----------|--------------|------------|----------------|------|----------------|-----------------|------|
-| `{{.ID}}` | Issue number (string) | PR number (string) | Issue/PR number or commit ID | Issue key (e.g., `ENG-42`) | Linear resource ID | Mapped `id` field (required) | Date-time string |
-| `{{.Number}}` | Issue number (int) | PR number (int) | Issue/PR number | Numeric suffix of the Jira key (e.g., `42` for `ENG-42`); `0` if the key has no `-N` suffix | Empty | Empty | `0` |
-| `{{.Title}}` | Issue title | PR title | Issue/PR title | Issue summary | Resource title | Mapped `title` field (if present) | Trigger time (RFC3339) |
-| `{{.Body}}` | Issue body | PR body | Issue/PR body | Empty (description is not fetched; tracked in [#990](https://github.com/kelos-dev/kelos/issues/990)) | Empty | Mapped `body` field (if present) | Empty |
-| `{{.URL}}` | Issue URL | PR URL | Issue/PR URL | Issue URL | Empty | Mapped `url` field (if present) | Empty |
-| `{{.Labels}}` | Comma-separated | Comma-separated | Empty | Comma-separated | Comma-separated | Empty | Empty |
-| `{{.Comments}}` | Issue comments | PR comments | Empty | Issue comments | Empty | Empty | Empty |
-| `{{.Kind}}` | `"Issue"` | `"PR"` | `"webhook"` | Jira issue type | `"LinearWebhook"` | `"GenericWebhook"` | `"Issue"` |
-| `{{.Event}}` | Empty | Empty | Event type (e.g., `"issues"`) | Empty | Empty | Empty | Empty |
-| `{{.Action}}` | Empty | Empty | Action (e.g., `"opened"`) | Empty | Action (e.g., `"create"`, `"update"`) | Empty | Empty |
-| `{{.Sender}}` | Empty | Empty | Event sender username | Empty | Empty | Empty | Empty |
-| `{{.Branch}}` | Empty | PR head branch | PR/push branch | Empty | Empty | Empty | Empty |
-| `{{.Ref}}` | Empty | Empty | Git ref (e.g., `"refs/heads/main"`) | Empty | Empty | Empty | Empty |
-| `{{.Repository}}` | Empty | Empty | `owner/repo` format | Empty | Empty | Empty | Empty |
-| `{{.RepositoryOwner}}` | Empty | Empty | Repository owner login | Empty | Empty | Empty | Empty |
-| `{{.RepositoryName}}` | Empty | Empty | Repository name only | Empty | Empty | Empty | Empty |
-| `{{.Payload}}` | Empty | Empty | Full webhook payload | Empty | Full Linear webhook payload | Full parsed JSON body | Empty |
-| `{{.ReviewState}}` | Empty | `approved` / `changes_requested` | Empty | Empty | Empty | Empty | Empty |
-| `{{.ReviewComments}}` | Empty | Inline review comments | Empty | Empty | Empty | Empty | Empty |
-| `{{.Type}}` | Empty | Empty | Empty | Empty | Resource type (e.g., `"Issue"`, `"Comment"`) | Empty | Empty |
-| `{{.State}}` | Empty | Empty | Empty | Empty | Workflow state (e.g., `"Todo"`, `"In Progress"`) | Empty | Empty |
-| `{{.IssueID}}` | Empty | Empty | Empty | Empty | Parent issue ID (Comment events only) | Empty | Empty |
-| `{{.CommentBody}}` | Empty | Empty | Comment/review body (`issue_comment`, `pull_request_review`, `pull_request_review_comment`) | Empty | Empty | Empty | Empty |
-| `{{.CommentURL}}` | Empty | Empty | Comment/review HTML URL (`issue_comment`, `pull_request_review`, `pull_request_review_comment`) | Empty | Empty | Empty | Empty |
-| `{{.Time}}` | Empty | Empty | Empty | Empty | Empty | Empty | Trigger time (RFC3339) |
-| `{{.Schedule}}` | Empty | Empty | Empty | Empty | Empty | Empty | Schedule string (e.g., `"0 * * * *"`) |
+| Variable | GitHub Issues | GitHub PRs | GitHub Webhook | Jira | Vikunja | Linear Webhook | Generic Webhook | Cron |
+|----------|--------------|------------|----------------|------|------|----------------|-----------------|------|
+| `{{.ID}}` | Issue number (string) | PR number (string) | Issue/PR number or commit ID | Issue key (e.g., `ENG-42`) | Task ID (string) | Linear resource ID | Mapped `id` field (required) | Date-time string |
+| `{{.Number}}` | Issue number (int) | PR number (int) | Issue/PR number | Numeric suffix of the Jira key (e.g., `42` for `ENG-42`); `0` if the key has no `-N` suffix | Task ID (int) | Empty | Empty | `0` |
+| `{{.Title}}` | Issue title | PR title | Issue/PR title | Issue summary | Task title | Resource title | Mapped `title` field (if present) | Trigger time (RFC3339) |
+| `{{.Body}}` | Issue body | PR body | Issue/PR body | Empty (description is not fetched; tracked in [#990](https://github.com/kelos-dev/kelos/issues/990)) | Task description (HTML, passed through unchanged) | Empty | Mapped `body` field (if present) | Empty |
+| `{{.URL}}` | Issue URL | PR URL | Issue/PR URL | Issue URL | Vikunja task URL | Empty | Mapped `url` field (if present) | Empty |
+| `{{.Labels}}` | Comma-separated | Comma-separated | Empty | Comma-separated | Comma-separated | Comma-separated | Empty | Empty |
+| `{{.Comments}}` | Issue comments | PR comments | Empty | Issue comments | Task comments (HTML, passed through unchanged) | Empty | Empty | Empty |
+| `{{.Kind}}` | `"Issue"` | `"PR"` | `"webhook"` | Jira issue type | `"Task"` | `"LinearWebhook"` | `"GenericWebhook"` | `"Issue"` |
+| `{{.Event}}` | Empty | Empty | Event type (e.g., `"issues"`) | Empty | Empty | Empty | Empty | Empty |
+| `{{.Action}}` | Empty | Empty | Action (e.g., `"opened"`) | Empty | Empty | Action (e.g., `"create"`, `"update"`) | Empty | Empty |
+| `{{.Sender}}` | Empty | Empty | Event sender username | Empty | Empty | Empty | Empty | Empty |
+| `{{.Branch}}` | Empty | PR head branch | PR/push branch | Empty | Empty | Empty | Empty | Empty |
+| `{{.Ref}}` | Empty | Empty | Git ref (e.g., `"refs/heads/main"`) | Empty | Empty | Empty | Empty | Empty |
+| `{{.Repository}}` | Empty | Empty | `owner/repo` format | Empty | Empty | Empty | Empty | Empty |
+| `{{.RepositoryOwner}}` | Empty | Empty | Repository owner login | Empty | Empty | Empty | Empty | Empty |
+| `{{.RepositoryName}}` | Empty | Empty | Repository name only | Empty | Empty | Empty | Empty | Empty |
+| `{{.Payload}}` | Empty | Empty | Full webhook payload | Empty | Empty | Full Linear webhook payload | Full parsed JSON body | Empty |
+| `{{.ReviewState}}` | Empty | `approved` / `changes_requested` | Empty | Empty | Empty | Empty | Empty | Empty |
+| `{{.ReviewComments}}` | Empty | Inline review comments | Empty | Empty | Empty | Empty | Empty | Empty |
+| `{{.Type}}` | Empty | Empty | Empty | Empty | Empty | Resource type (e.g., `"Issue"`, `"Comment"`) | Empty | Empty |
+| `{{.State}}` | Empty | Empty | Empty | Empty | Empty | Workflow state (e.g., `"Todo"`, `"In Progress"`) | Empty | Empty |
+| `{{.IssueID}}` | Empty | Empty | Empty | Empty | Empty | Parent issue ID (Comment events only) | Empty | Empty |
+| `{{.CommentBody}}` | Empty | Empty | Comment/review body (`issue_comment`, `pull_request_review`, `pull_request_review_comment`) | Empty | Empty | Empty | Empty | Empty |
+| `{{.CommentURL}}` | Empty | Empty | Comment/review HTML URL (`issue_comment`, `pull_request_review`, `pull_request_review_comment`) | Empty | Empty | Empty | Empty | Empty |
+| `{{.Time}}` | Empty | Empty | Empty | Empty | Empty | Empty | Empty | Trigger time (RFC3339) |
+| `{{.Schedule}}` | Empty | Empty | Empty | Empty | Empty | Empty | Empty | Schedule string (e.g., `"0 * * * *"`) |
 
 > **Generic Webhook only:** any additional keys you declare in `fieldMapping` are also exposed as top-level variables. For example, `fieldMapping: {severity: "$.level"}` makes `{{.severity}}` available in templates.
 

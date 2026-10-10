@@ -816,6 +816,112 @@ func TestDeploymentBuilder_Jira(t *testing.T) {
 	}
 }
 
+func TestDeploymentBuilder_Vikunja(t *testing.T) {
+	builder := NewDeploymentBuilder()
+	ts := &kelos.TaskSpawner{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-spawner",
+			Namespace: "default",
+		},
+		Spec: kelos.TaskSpawnerSpec{
+			When: kelos.When{
+				Vikunja: &kelos.Vikunja{
+					BaseURL:   "https://vikunja.example.com",
+					ProjectID: 49,
+					Filter:    "done = false && labels in 5",
+					SecretRef: kelos.SecretReference{Name: "vikunja-creds"},
+				},
+			},
+			TaskTemplate: kelos.TaskTemplate{
+				Type: "claude-code",
+			},
+		},
+	}
+
+	deploy := builder.Build(ts, nil, false)
+
+	if len(deploy.Spec.Template.Spec.Containers) != 1 {
+		t.Fatalf("expected 1 container, got %d", len(deploy.Spec.Template.Spec.Containers))
+	}
+
+	spawner := deploy.Spec.Template.Spec.Containers[0]
+
+	foundBaseURL := false
+	foundProjectID := false
+	foundFilter := false
+	for _, arg := range spawner.Args {
+		switch {
+		case arg == "--vikunja-base-url=https://vikunja.example.com":
+			foundBaseURL = true
+		case arg == "--vikunja-project-id=49":
+			foundProjectID = true
+		case arg == "--vikunja-filter=done = false && labels in 5":
+			foundFilter = true
+		}
+	}
+	if !foundBaseURL {
+		t.Errorf("expected --vikunja-base-url arg, got args: %v", spawner.Args)
+	}
+	if !foundProjectID {
+		t.Errorf("expected --vikunja-project-id arg, got args: %v", spawner.Args)
+	}
+	if !foundFilter {
+		t.Errorf("expected --vikunja-filter arg, got args: %v", spawner.Args)
+	}
+
+	if len(spawner.Env) != 1 {
+		t.Fatalf("expected 1 env var, got %d", len(spawner.Env))
+	}
+
+	vikunjaToken := spawner.Env[0]
+	if vikunjaToken.Name != "VIKUNJA_TOKEN" {
+		t.Fatalf("expected VIKUNJA_TOKEN env var, got %q", vikunjaToken.Name)
+	}
+	if vikunjaToken.ValueFrom == nil || vikunjaToken.ValueFrom.SecretKeyRef == nil {
+		t.Fatal("expected VIKUNJA_TOKEN to reference a secret")
+	}
+	if vikunjaToken.ValueFrom.SecretKeyRef.Name != "vikunja-creds" {
+		t.Errorf("VIKUNJA_TOKEN secret name = %q, want %q", vikunjaToken.ValueFrom.SecretKeyRef.Name, "vikunja-creds")
+	}
+	if vikunjaToken.ValueFrom.SecretKeyRef.Key != "VIKUNJA_TOKEN" {
+		t.Errorf("VIKUNJA_TOKEN secret key = %q, want %q", vikunjaToken.ValueFrom.SecretKeyRef.Key, "VIKUNJA_TOKEN")
+	}
+	if vikunjaToken.ValueFrom.SecretKeyRef.Optional != nil {
+		t.Error("expected VIKUNJA_TOKEN secret key ref to be required, not optional")
+	}
+}
+
+func TestDeploymentBuilder_VikunjaNoFilter(t *testing.T) {
+	builder := NewDeploymentBuilder()
+	ts := &kelos.TaskSpawner{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-spawner",
+			Namespace: "default",
+		},
+		Spec: kelos.TaskSpawnerSpec{
+			When: kelos.When{
+				Vikunja: &kelos.Vikunja{
+					BaseURL:   "https://vikunja.example.com",
+					ProjectID: 49,
+					SecretRef: kelos.SecretReference{Name: "vikunja-creds"},
+				},
+			},
+			TaskTemplate: kelos.TaskTemplate{
+				Type: "claude-code",
+			},
+		},
+	}
+
+	deploy := builder.Build(ts, nil, false)
+	spawner := deploy.Spec.Template.Spec.Containers[0]
+
+	for _, arg := range spawner.Args {
+		if strings.HasPrefix(arg, "--vikunja-filter") {
+			t.Errorf("should not include --vikunja-filter arg when Filter is empty, got %q", arg)
+		}
+	}
+}
+
 func TestBuildDeploymentWithGitHubIssuesRepoOverride(t *testing.T) {
 	builder := NewDeploymentBuilder()
 	ts := &kelos.TaskSpawner{

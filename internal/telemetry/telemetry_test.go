@@ -671,6 +671,16 @@ func TestSourceTypeExtraction(t *testing.T) {
 				When: kelos.When{GitHubIssues: &kelos.GitHubIssues{}},
 			},
 		},
+		{
+			ObjectMeta: metav1.ObjectMeta{Name: "s10", Namespace: "ns"},
+			Spec: kelos.TaskSpawnerSpec{
+				When: kelos.When{Vikunja: &kelos.Vikunja{
+					BaseURL:   "https://vikunja.example.com",
+					ProjectID: 49,
+					SecretRef: kelos.SecretReference{Name: "vikunja-secret"},
+				}},
+			},
+		},
 	}
 
 	objs := make([]runtime.Object, 0)
@@ -710,6 +720,7 @@ func TestSourceTypeExtraction(t *testing.T) {
 		"cron":                 1,
 		"jira":                 1,
 		"slack":                1,
+		"vikunja":              1,
 	}
 	for source, count := range expectedBySource {
 		if report.TaskSpawners.BySource[source] != count {
