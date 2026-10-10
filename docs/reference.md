@@ -1746,11 +1746,17 @@ The `kelos` CLI lets you manage the full lifecycle without writing YAML.
 | `kelos create agentconfig` | Create an AgentConfig resource |
 | `kelos get <resource> [name]` | List resources or view a specific resource (`tasks`, `sessions`, `taskspawners`, `workspaces`, `agentconfigs`, `workerpools`) |
 | `kelos delete <resource> [name]` | Delete a resource (`tasks`, `sessions`, `taskspawners`, `workspaces`, `agentconfigs`, `workerpools`) |
-| `kelos logs <task-name> [-f]` | View or stream logs from a task |
+| `kelos logs <task-name> [-f] [-v] [--color=auto\|always\|never] [--raw]` | View or stream logs from a task |
 | `kelos suspend taskspawner <name>` | Pause a TaskSpawner (stops polling, running tasks continue) |
 | `kelos resume taskspawner <name>` | Resume a paused TaskSpawner |
 
 `kelos logs <task-name> -f` waits while the task Pod is unscheduled, Pending, or initializing its target container, then streams logs once the container is available. If Kubernetes closes an empty agent log stream while the Task is still active, the command reconnects instead of reporting completion. Failed Tasks and non-transient container startup failures return an error instead of retrying indefinitely.
+
+On a terminal, `kelos logs` renders agent output in color, in a layout modeled on Claude Code: each tool call shows its arguments and a preview of its output, file edits show a red and green diff, todo lists show as checklists, and the run ends with a footer listing turns, cost, tokens and duration. Codex reports only the paths of the files it changes, so its edits show no diff. Add `-v` to show full tool output, full diffs, reasoning and sub-agent activity instead of previews.
+
+- `--color=auto` (the default) uses this output when stdout is a terminal and `NO_COLOR` is unset. When stdout is piped, it falls back to the plain format: assistant text on stdout, and status and tool lines on stderr.
+- `--color=always` uses the color output even when piped; `--color=never` always uses the plain format.
+- `--raw` prints the agent's NDJSON stream unparsed.
 
 ### `kelos install` Flags
 

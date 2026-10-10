@@ -1,0 +1,7 @@
+{"type":"step_start","part":{"type":"step-start"}}
+{"type":"tool_use","part":{"type":"tool","tool":"bash","callID":"c1","state":{"status":"completed","input":{"command":"ls"},"output":"a\nb"}}}
+{"type":"tool_use","part":{"type":"tool","tool":"edit","callID":"c2","state":{"status":"completed","input":{"filePath":"/workspace/repo/a.go","oldString":"x := 1","newString":"x := 2"},"output":""}}}
+{"type":"tool_use","part":{"type":"tool","tool":"read","callID":"c3","state":{"status":"error","input":{"filePath":"/workspace/repo/missing.go"},"error":"file not found"}}}
+{"type":"step_finish","part":{"type":"step-finish","reason":"tool-calls","cost":0.001,"tokens":{"input":100,"output":10,"cache":{"read":50,"write":0}}}}
+{"type":"text","part":{"type":"text","text":"Done."}}
+{"type":"step_finish","part":{"type":"step-finish","reason":"stop","cost":0.002,"tokens":{"input":200,"output":20,"cache":{"read":100,"write":0}}}}
