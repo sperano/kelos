@@ -1,2 +1,0 @@
-{"type":"step_start","timestamp":1763800000000,"sessionID":"ses_0000000000001example","part":{"id":"prt_s1","sessionID":"ses_0000000000001example","messageID":"msg_1","type":"step-start"}}
-{"type":"error","timestamp":1763800001000,"sessionID":"ses_0000000000001example","error":{"name":"ProviderAuthError","data":{"providerID":"anthropic","message":"invalid key"}}}

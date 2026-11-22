@@ -1,7 +1,0 @@
-{
-  "schemaVersion": 1,
-  "runner": "opencode",
-  "sessionID": "ses_0000000000001example",
-  "coverage": "Missing",
-  "notes": ["failed-step-usage-not-reported", "no-step-usage"]
-}
