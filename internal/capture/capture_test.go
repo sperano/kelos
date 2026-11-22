@@ -361,15 +361,3 @@ func TestMain(m *testing.M) {
 	os.Unsetenv("KELOS_UPSTREAM_REPO")
 	os.Exit(m.Run())
 }
-
-func TestCaptureOutputsEmitsUsageBreakdown(t *testing.T) {
-	r := mockRunner{commands: map[string]mockResult{
-		"git rev-parse --is-inside-work-tree": {err: fmt.Errorf("not a git repo")},
-	}}
-	t.Setenv("KELOS_BASE_BRANCH", "")
-	breakdown := `{"schemaVersion":1,"runner":"codex","coverage":"Missing","notes":["no-final-usage"]}`
-
-	outputs := captureOutputs(r, map[string]string{"input-tokens": "5", usageBreakdownKey: breakdown})
-
-	assertOutputLines(t, []string{"input-tokens: 5", "usage-breakdown: " + breakdown}, outputs)
-}

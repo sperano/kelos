@@ -17,7 +17,7 @@ import (
 // only the state they need (last "result" line or running counters), so
 // memory cost is O(1) in the size of the stream.
 type usageAccumulator interface {
-	addLine(m map[string]any)
+	addLine(line []byte)
 	result() map[string]string
 }
 
@@ -54,7 +54,6 @@ func newUsageAccumulator(agentType string) usageAccumulator {
 // the agent producer is already holding).
 func StreamUsage(agentType string, r io.Reader, w io.Writer) (usage map[string]string, err error) {
 	acc := newUsageAccumulator(agentType)
-	builder := newBreakdownBuilder(agentType)
 	bw := bufio.NewWriter(w)
 	defer func() {
 		if ferr := bw.Flush(); err == nil {
@@ -77,18 +76,13 @@ func StreamUsage(agentType string, r io.Reader, w io.Writer) (usage map[string]s
 					return nil, werr
 				}
 			}
-			if acc != nil || builder != nil {
+			if acc != nil {
 				body := line
 				if body[len(body)-1] == '\n' {
 					body = body[:len(body)-1]
 				}
-				if m := parseLine(body); m != nil {
-					if acc != nil {
-						acc.addLine(m)
-					}
-					if builder != nil {
-						builder.addLine(m)
-					}
+				if len(body) > 0 {
+					acc.addLine(body)
 				}
 			}
 		}
@@ -103,16 +97,6 @@ func StreamUsage(agentType string, r io.Reader, w io.Writer) (usage map[string]s
 		return nil, nil
 	}
 	usage = acc.result()
-	if builder != nil {
-		encoded, encErr := encodeBreakdown(builder.breakdown())
-		if encErr != nil {
-			return usage, encErr
-		}
-		if usage == nil {
-			usage = make(map[string]string)
-		}
-		usage[usageBreakdownKey] = encoded
-	}
 	if agentType == "claude-code" {
 		lastResultAccumulator, ok := acc.(*lastResultAccumulator)
 		if ok && lastResultAccumulator.last != nil {
@@ -149,7 +133,11 @@ type lastResultAccumulator struct {
 	response        string
 }
 
-func (a *lastResultAccumulator) addLine(m map[string]any) {
+func (a *lastResultAccumulator) addLine(line []byte) {
+	m := parseLine(line)
+	if m == nil {
+		return
+	}
 	if m["type"] == "result" {
 		a.last = m
 	}
@@ -190,7 +178,11 @@ type sumAccumulator struct {
 	response        string
 }
 
-func (a *sumAccumulator) addLine(m map[string]any) {
+func (a *sumAccumulator) addLine(line []byte) {
+	m := parseLine(line)
+	if m == nil {
+		return
+	}
 	if m["type"] == a.event {
 		i, o := a.extract(m)
 		a.in += i

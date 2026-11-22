@@ -454,17 +454,6 @@ type TaskUsage struct {
 	// +optional
 	// +kubebuilder:validation:Minimum=0
 	OutputTokens *int64 `json:"outputTokens,omitempty"`
-
-	// Attempts holds the normalized usage of each agent Pod the Task ran,
-	// in creation order. CostUSD, InputTokens and OutputTokens above are
-	// the legacy totals of the latest Pod only, in each agent's native
-	// meaning; Attempts is the breakdown that counts every attempt once.
-	// Set only for agent types whose output Kelos normalizes (claude-code,
-	// codex, opencode).
-	// +optional
-	// +listType=atomic
-	// +kubebuilder:validation:MaxItems=10
-	Attempts []UsageAttempt `json:"attempts,omitempty"`
 }
 
 // +genclient
