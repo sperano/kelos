@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "runner": "claude-code",
+  "sessionID": "22222222-2222-4222-8222-222222222222",
+  "coverage": "Missing",
+  "notes": ["no-final-result"]
+}

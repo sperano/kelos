@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "runner": "codex",
+  "sessionID": "0199a000-0000-7000-8000-000000000005",
+  "final": true,
+  "coverage": "Partial",
+  "notes": ["subagent-usage-not-reported", "model-rerouted", "model-not-reported"],
+  "subagents": [{"id": "0199a000-0000-7000-8000-0000000000c1"}],
+  "models": [
+    {
+      "uncachedInputTokens": 3000,
+      "cacheReadInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 100,
+      "reasoningOutputTokens": 0,
+      "webSearchRequests": 0
+    }
+  ]
+}

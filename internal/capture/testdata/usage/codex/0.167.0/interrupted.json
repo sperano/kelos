@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "runner": "codex",
+  "sessionID": "0199a000-0000-7000-8000-000000000004",
+  "coverage": "Missing",
+  "notes": ["no-final-usage"]
+}
