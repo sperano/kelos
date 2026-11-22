@@ -920,6 +920,7 @@ func (r *TaskReconciler) updateStatus(ctx context.Context, task *kelos.Task, job
 	// or retrying capture for an already-completed task
 	var outputs []string
 	var results map[string]string
+	var attempts []kelos.UsageAttempt
 	if setCompletionTime || retryOutputs {
 		effectivePodName := podName
 		if effectivePodName == "" {
@@ -927,6 +928,9 @@ func (r *TaskReconciler) updateStatus(ctx context.Context, task *kelos.Task, job
 		}
 		containerName := kelos.AgentContainerName
 		outputs, results = r.readOutputs(ctx, task.Namespace, effectivePodName, containerName)
+		if podListSucceeded {
+			attempts = usageAttempts(task, job, pods.Items, effectivePodName, results, r.podOutputsReader(ctx, task.Namespace))
+		}
 	}
 
 	// When retrying output capture, skip the status update if we still
@@ -953,13 +957,13 @@ func (r *TaskReconciler) updateStatus(ctx context.Context, task *kelos.Task, job
 				task.Status.CompletionTime = &now
 				task.Status.Outputs = outputs
 				task.Status.Results = results
-				task.Status.Usage = usageFromResults(results)
+				task.Status.Usage = withAttempts(usageFromResults(results), attempts)
 			}
 		}
 		if retryOutputs && (outputs != nil || results != nil) {
 			task.Status.Outputs = outputs
 			task.Status.Results = results
-			task.Status.Usage = usageFromResults(results)
+			task.Status.Usage = withAttempts(usageFromResults(results), attempts)
 		}
 		return r.Status().Update(ctx, task)
 	}); err != nil {

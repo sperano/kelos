@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "runner": "claude-code",
+  "sessionID": "44444444-4444-4444-8444-444444444444",
+  "final": true,
+  "coverage": "Complete",
+  "includesSubagents": true,
+  "reportedCostUSD": "0",
+  "costSource": "claude-code"
+}

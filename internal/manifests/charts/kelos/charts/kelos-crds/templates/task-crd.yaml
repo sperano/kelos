@@ -21167,6 +21167,228 @@ spec:
                   Usage contains structured cost and token usage populated from results
                   when the Task reaches a terminal phase.
                 properties:
+                  attempts:
+                    description: |-
+                      Attempts holds the normalized usage of each agent Pod the Task ran,
+                      in creation order. CostUSD, InputTokens and OutputTokens above are
+                      the legacy totals of the latest Pod only, in each agent's native
+                      meaning; Attempts is the breakdown that counts every attempt once.
+                      Set only for agent types whose output Kelos normalizes (claude-code,
+                      codex, opencode).
+                    items:
+                      description: UsageAttempt is the usage of one agent Pod of a
+                        Task.
+                      properties:
+                        breakdown:
+                          description: |-
+                            Breakdown is the attempt's normalized usage. When the Pod printed
+                            none or its log could not be read, the controller records a
+                            breakdown with coverage Missing and a note saying why.
+                          properties:
+                            costSource:
+                              description: CostSource names what computed ReportedCostUSD
+                                (the agent type).
+                              type: string
+                            coverage:
+                              description: Coverage states how much of the attempt's
+                                usage this holds.
+                              enum:
+                              - Complete
+                              - Partial
+                              - Missing
+                              type: string
+                            final:
+                              description: Final is true when the agent printed its
+                                terminal usage summary.
+                              type: boolean
+                            includesSubagents:
+                              description: |-
+                                IncludesSubagents is true when the model totals already include the
+                                usage of the subagents the run started.
+                              type: boolean
+                            models:
+                              description: Models holds one entry per model the run
+                                used.
+                              items:
+                                description: |-
+                                  ModelUsage is the usage of one model within a run. Token counters are
+                                  disjoint except ReasoningOutputTokens, which OutputTokens includes, and
+                                  the CacheWrite5m/1h split, which CacheWriteInputTokens includes. An
+                                  absent counter is unknown, not zero.
+                                properties:
+                                  cacheReadInputTokens:
+                                    description: CacheReadInputTokens are input tokens
+                                      read from a prompt cache.
+                                    format: int64
+                                    minimum: 0
+                                    type: integer
+                                  cacheWrite1hInputTokens:
+                                    description: |-
+                                      CacheWrite1hInputTokens is the part of CacheWriteInputTokens written
+                                      with a one-hour lifetime, when reported.
+                                    format: int64
+                                    minimum: 0
+                                    type: integer
+                                  cacheWrite5mInputTokens:
+                                    description: |-
+                                      CacheWrite5mInputTokens is the part of CacheWriteInputTokens written
+                                      with a five-minute lifetime, when reported.
+                                    format: int64
+                                    minimum: 0
+                                    type: integer
+                                  cacheWriteInputTokens:
+                                    description: CacheWriteInputTokens are input tokens
+                                      written to a prompt cache.
+                                    format: int64
+                                    minimum: 0
+                                    type: integer
+                                  canonicalModel:
+                                    description: CanonicalModel is the agent's canonical
+                                      id for Model, when reported.
+                                    type: string
+                                  costBasis:
+                                    description: |-
+                                      CostBasis is the agent's label for how it priced ReportedCostUSD,
+                                      when it gives one.
+                                    type: string
+                                  model:
+                                    description: |-
+                                      Model is the model id as reported, or as configured (ModelSource).
+                                      Empty when neither is known.
+                                    type: string
+                                  modelSource:
+                                    description: ModelSource states where Model comes
+                                      from.
+                                    enum:
+                                    - Reported
+                                    - Configured
+                                    type: string
+                                  otherCounters:
+                                    additionalProperties:
+                                      format: int64
+                                      type: integer
+                                    description: |-
+                                      OtherCounters keeps numeric usage counters the agent reported that
+                                      this contract does not name yet, under the agent's own key.
+                                    maxProperties: 32
+                                    type: object
+                                  outputTokens:
+                                    description: OutputTokens are all output tokens,
+                                      reasoning included.
+                                    format: int64
+                                    minimum: 0
+                                    type: integer
+                                  provider:
+                                    description: Provider is the model provider, when
+                                      reported or configured.
+                                    type: string
+                                  reasoningOutputTokens:
+                                    description: ReasoningOutputTokens is the reasoning
+                                      part of OutputTokens.
+                                    format: int64
+                                    minimum: 0
+                                    type: integer
+                                  reportedCostUSD:
+                                    description: |-
+                                      ReportedCostUSD is this model's cost in USD as the agent reported
+                                      it, a plain non-negative decimal string.
+                                    maxLength: 40
+                                    pattern: ^(0|[1-9][0-9]*)(\.[0-9]+)?$
+                                    type: string
+                                  uncachedInputTokens:
+                                    description: |-
+                                      UncachedInputTokens are input tokens neither read from nor written
+                                      to a prompt cache.
+                                    format: int64
+                                    minimum: 0
+                                    type: integer
+                                  webSearchRequests:
+                                    description: WebSearchRequests is the number of
+                                      server-side web searches.
+                                    format: int64
+                                    minimum: 0
+                                    type: integer
+                                type: object
+                              maxItems: 32
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            notes:
+                              description: |-
+                                Notes are short machine-readable reasons for the coverage, such as
+                                no-final-result or subagent-usage-not-reported.
+                              items:
+                                maxLength: 64
+                                type: string
+                              maxItems: 16
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            reportedCostUSD:
+                              description: |-
+                                ReportedCostUSD is the run's cost in USD as the agent itself reported
+                                it (CostSource), never a Kelos estimate: a plain non-negative decimal
+                                string, exact as printed.
+                              maxLength: 40
+                              pattern: ^(0|[1-9][0-9]*)(\.[0-9]+)?$
+                              type: string
+                            runner:
+                              description: Runner is the agent type whose output was
+                                parsed.
+                              type: string
+                            schemaVersion:
+                              description: SchemaVersion is the version of this contract.
+                              format: int32
+                              minimum: 1
+                              type: integer
+                            sessionID:
+                              description: SessionID is the agent's own session or
+                                thread id.
+                              type: string
+                            subagents:
+                              description: |-
+                                Subagents are the child sessions the run started, when the output
+                                names them.
+                              items:
+                                description: SubagentUsageRef identifies a child session
+                                  of a run.
+                                properties:
+                                  id:
+                                    description: ID is the child session id as the
+                                      agent printed it.
+                                    minLength: 1
+                                    type: string
+                                  model:
+                                    description: Model is the child's model, when
+                                      printed.
+                                    type: string
+                                  usageIncluded:
+                                    description: UsageIncluded is true when the child's
+                                      usage is inside Models.
+                                    type: boolean
+                                required:
+                                - id
+                                type: object
+                              maxItems: 64
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - coverage
+                          - schemaVersion
+                          type: object
+                        podName:
+                          description: PodName is the agent Pod whose output was read.
+                          minLength: 1
+                          type: string
+                        podUID:
+                          description: PodUID identifies the attempt across Pods that
+                            reuse a name.
+                          type: string
+                      required:
+                      - breakdown
+                      - podName
+                      type: object
+                    maxItems: 10
+                    type: array
+                    x-kubernetes-list-type: atomic
                   costUSD:
                     anyOf:
                     - type: integer

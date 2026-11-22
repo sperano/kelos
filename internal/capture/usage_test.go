@@ -222,6 +222,9 @@ func TestStreamUsage(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
+			// The normalized breakdown has its own fixture tests
+			// (breakdown_test.go); these cases pin the legacy keys.
+			delete(got, usageBreakdownKey)
 			assertMapEqual(t, tt.want, got)
 			// Every input line must be forwarded to stdout unchanged.
 			assertForwarded(t, tt.content, out.String())

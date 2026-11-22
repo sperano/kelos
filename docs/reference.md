@@ -1876,6 +1876,7 @@ Several distinct "gateway" concepts coexist:
 | `status.usage.costUSD` | Reported agent cost in USD (non-negative `resource.Quantity`). Parsed from `results["cost-usd"]` |
 | `status.usage.inputTokens` | Number of input tokens consumed (non-negative integer). Parsed from `results["input-tokens"]` |
 | `status.usage.outputTokens` | Number of output tokens produced (non-negative integer). Parsed from `results["output-tokens"]` |
+| `status.usage.attempts` | Normalized usage of each agent Pod the Task's Job ran, oldest first (at most 10, the newest kept), for `claude-code`, `codex` and `opencode` Tasks. `costUSD`, `inputTokens` and `outputTokens` above hold the latest Pod's totals in each agent's own meaning; `attempts` counts every attempt once. Parsed from each Pod's `results["usage-breakdown"]`. See [Usage breakdown](#usage-breakdown) |
 | `status.conditions` | Standard Kubernetes conditions. Includes `BudgetBlocked` when a matching TaskBudget has been exceeded |
 
 ## TaskBudget
@@ -1932,7 +1933,31 @@ TTL. Tasks that complete without usage do not generate a TaskRecord.
 | `spec.usage.costUSD` | Reported cost in USD | No |
 | `spec.usage.inputTokens` | Input tokens consumed | No |
 | `spec.usage.outputTokens` | Output tokens produced | No |
+| `spec.usage.attempts` | Normalized usage of each agent Pod, copied from `Task.status.usage.attempts`. See [Usage breakdown](#usage-breakdown) | No |
 | `spec.ttlSecondsAfterCompletion` | Seconds after `completionTime` before automatic deletion. If unset, the record is retained indefinitely. Controller-created records set this to 30 days | No |
+
+## Usage breakdown
+
+`Task.status.usage.attempts[]` (and `TaskRecord.spec.usage.attempts[]`) has one entry per agent Pod: `podName`, `podUID` and `breakdown`. A `breakdown` holds:
+
+| Field | Description |
+|-------|-------------|
+| `schemaVersion` | Contract version, currently `1` |
+| `runner` | Agent type whose output was parsed |
+| `sessionID` | The agent's session (Claude Code, OpenCode) or thread (Codex) id |
+| `final` | `true` when the agent printed its terminal usage summary |
+| `coverage` | `Complete`, `Partial` (some usage is known to be absent) or `Missing` (none reported; counters are absent, never zero) |
+| `notes` | Reasons for the coverage, e.g. `no-final-result`, `subagent-usage-not-reported`, `failed-turn-usage-not-reported`, `usage-after-final-result`, `model-not-reported`, `attempt-usage-unavailable` |
+| `includesSubagents` | `true` when `models` already includes subagent usage (Claude Code) |
+| `subagents[]` | Child sessions the output names: `id`, `model`, `usageIncluded` |
+| `models[]` | Per-model usage: `model`, `modelSource` (`Reported` by the agent, or `Configured` from the Task when the output names none), `canonicalModel`, `provider`, `uncachedInputTokens`, `cacheReadInputTokens`, `cacheWriteInputTokens` (with its `cacheWrite5mInputTokens`/`cacheWrite1hInputTokens` split when reported), `outputTokens` (reasoning included), `reasoningOutputTokens`, `webSearchRequests`, `reportedCostUSD`, `costBasis`, `otherCounters` (counters the contract does not name yet) |
+| `reportedCostUSD`, `costSource` | The run's cost as the agent computed it, never a Kelos estimate: Claude Code's `total_cost_usd`, OpenCode's summed step cost; Codex reports none |
+
+What each agent reports:
+
+- **Claude Code**: the last `result` line's `modelUsage`, cumulative for the session and including subagents and compaction. Assistant lines and `result.usage` (main loop only) are not used. No result: `Missing`.
+- **Codex**: the last `turn.completed` usage (the thread's running total). Cached and cache-write input are subtracted from `input_tokens`. The model is the configured one. Spawned agents and failed or interrupted turns print no usage, so they lower coverage.
+- **OpenCode**: the `step_finish` parts of the run's own session, summed once per part id. The model is the configured one. Subagent sessions and failed steps print no usage.
 
 ## TaskSpawner Status
 
